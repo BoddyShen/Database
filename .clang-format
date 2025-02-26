@@ -1,0 +1,10 @@
+BasedOnStyle: LLVM
+IndentWidth: 4
+UseTab: Never
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+IndentCaseLabels: false
+BreakBeforeBraces: Linux
+ColumnLimit: 100
+IndentWrappedFunctionNames: false
+AlignConsecutiveMacros: true
