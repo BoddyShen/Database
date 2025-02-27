@@ -7,6 +7,9 @@
 class Page
 {
   public:
+    // Constructor
+    Page();
+
     /**
      * Fetches a row from the page by its row ID.
      * @param rowId The ID of the row to retrieve.
@@ -27,6 +30,12 @@ class Page
      * @return true if the page is full, false otherwise.
      */
     bool isFull();
+
+  private:
+    // Fixed-size data buffer (4 KB) for the packed records.
+    std::array<uint8_t, MAX_PAGE_SIZE> pageData;
+    // The number of rows currently stored in the page.
+    int numRecords;
 };
 
 #endif // PAGE_H
