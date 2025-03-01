@@ -20,6 +20,19 @@ struct Row {
         : movieId(movieId), title(title)
     {
     }
+
+    // Additional constructor that accepts C-string literals.
+    Row(const char *movieIdStr, const char *titleStr)
+    {
+        movieId.fill(0);
+        title.fill(0);
+        // Copy at most MOVIE_ID_SIZE bytes from movieIdStr.
+        size_t lenMovie = std::min(std::strlen(movieIdStr), static_cast<size_t>(MOVIE_ID_SIZE));
+        std::copy(movieIdStr, movieIdStr + lenMovie, movieId.begin());
+        // Copy at most TITLE_SIZE bytes from titleStr.
+        size_t lenTitle = std::min(std::strlen(titleStr), static_cast<size_t>(TITLE_SIZE));
+        std::copy(titleStr, titleStr + lenTitle, title.begin());
+    }
 };
 
 #endif // ROW_H
