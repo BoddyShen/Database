@@ -20,3 +20,17 @@ string Utilities::rowToString(const Row &row)
 
     return "Movie ID: " + movieIdStr + ", Title: " + titleStr;
 }
+
+
+int Utilities::findEmptyFrame(pageTable) {
+    // find an empty frame and if frames are full then evict a page
+    for (int i = 0; i < pageTable.size(); i++) {
+        if (pageTable == -1) {
+            return i;
+        }
+    }
+
+    // evict a page using LRU
+
+    return -1;
+}

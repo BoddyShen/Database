@@ -38,6 +38,30 @@ class BufferManager
      * @param pageId The ID of the page to unpin.
      */
     void unpinPage(int pageId);
+
+  private:
+    // store pages in a buffer pool
+    std::vector<Page*> bufferPool;
+
+    // key: page id value: frames
+    std::unordered_map<int, int> pageTable;
+
+
+    struct PageMetadata {
+        int pageId = -1;
+        bool isDirty = false;
+        int pinCount = 0;
+    }
+
+    std::vector<PageMetadata> pageMetadata;
+
+
+    // LRU stuffs
+    // ....
+
+    std::fstream dbData;
+
+    int nextPageId;
 };
 
 #endif // BUFFER_MANAGER_H
