@@ -39,13 +39,16 @@ class BufferManager
      */
     void unpinPage(int pageId);
 
+    int BufferManager::findEmptyFrame();
+    int BufferManager::findLRUFrame();
+    void BufferManager::updateLruQueue(int frameId);
+
   private:
     // store pages in a buffer pool
     std::vector<Page*> bufferPool;
 
     // key: page id value: frames
     std::unordered_map<int, int> pageTable;
-
 
     struct PageMetadata {
         int pageId = -1;
@@ -55,9 +58,11 @@ class BufferManager
 
     std::vector<PageMetadata> pageMetadata;
 
-
-    // LRU stuffs
-    // ....
+    // least used frame would be in the last
+    // store frame indexes
+    std::vector<int> lruQueue;
+    // find the index faster in lruQueue using frameId everytime we access lruQueue
+    std::unordered_map<int, std::list<int>::iterator> lruMap;
 
     std::fstream dbData;
 

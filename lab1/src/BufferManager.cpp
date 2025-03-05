@@ -31,11 +31,10 @@ BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize)
 
 Page* BufferManager::getPage(int pageId) {
     // if it's in the buffer pool, return it and update the lru
-
     if (pageTable.find(pageId) != pageTable.end()) {
         int frameIndex = pageTable[pageId];
         pageMetadata[frameIndex].pinCount++;
-        // lru thing
+        updateLruQueue(frameIndex);
         return bufferPool[frameIndex];
     } else {
         // if it's not in the buffer pool, load it from disk
@@ -43,40 +42,44 @@ Page* BufferManager::getPage(int pageId) {
             // add the new page to the buffer pool
         // return the page
         int frameIndex = findEmptyFrame(pageTable);
-        
 
         Page* page = new Page();
         dbData.seekg(pageId * MAX_PAGE_SIZE);
         dbData.read(page->data, MAX_PAGE_SIZE);
 
-        // move to LRU part?
-        delete bufferPool[frameIndex];
-        bufferPool[frameIndex] = page;
+
+        pageTable[pageId] = frameIndex;
+        pageMetadata[frameId].pageId = pageId;
+        pageMetadata[frameId].isDirty = false;
+        pageMetadata[frameId].pinCount += 1;
+
+        updateLruQueue(frameId);
+        return bufferPool[frameId];
     }
 }
 
 
 
 Page* BufferManager::createPage() {
-    int emptyFrameIndex = findEmptyFrame(pageTable);
-    pageId = nextPageId + 1;
+    int frameIndex = findEmptyFrame(pageTable);
+    int pageId = nextPageId + 1;
 
     // create a new page
     Page* newPage = new Page();
 
     // add the new page to the buffer pool
-    bufferPool[emptyFrameIndex] = newPage;
+    bufferPool[frameIndex] = newPage;
 
     // update the page table
-    pageTable[pageId] = emptyFrameIndex;
+    pageTable[pageId] = frameIndex;
 
     // update the metadata
-    pageMetadata[emptyFrameIndex].pageId = pageId;
-    pageMetadata[emptyFrameIndex].pinCount = 1;
-    pageMetadata[emptyFrameIndex].isDirty = ture;
+    pageMetadata[frameIndex].pageId = pageId;
+    pageMetadata[frameIndex].pinCount = 1;
+    pageMetadata[frameIndex].isDirty = ture;
 
     // LRU stuffs
-
+    updateLruQueue(frameIndex);
     return newPage;
 
 }
@@ -97,4 +100,59 @@ void unpinPage(int pageId) {
         }
     }
 
+}
+
+int BufferManager::findEmptyFrame() {
+    // find an empty frame
+    int frameIndex = -1;
+    for (int i = 0; i < pageTable.size(); i++) {
+        if (pageTable[i].pageId == -1) {
+            frameIndex = pageTable[i];
+        }
+    }
+
+    frameIndex = findLRUFrame(pageTable);
+
+    delete bufferPool[frameIndex];
+    bufferPool[frameIndex] = page;
+
+    return frameIndex;
+}
+
+int BufferManager::findLRUFrame() {
+    // find the least recently used frame
+    for (int i = lruQueue.size() - 1; i >=0; i--) {
+        int frameId = lruQueue[i];
+        if (PageMetadata[frameId].pinCount == 0) {
+            int pageId = PageMetadata[frameId].pageId;
+
+            if (PageMetadata[frameId].isDirty) {
+                // write to disk
+                dbData.seekp(pageId * MAX_PAGE_SIZE);
+                dbData.write(bufferPool[frameId]->data, MAX_PAGE_SIZE);
+
+                pageMetadata[frameId].isDirty = false;
+            }
+            // remove from page table
+            pageTable.erase(pageId);
+            // remove from lru queue
+            lruQueue.erase(lruQueue.begin() + i);
+            // remove from lru map
+            lruMap.erase(frameId);
+
+            return frameId;
+        }
+    };
+}
+
+void BufferManager::updateLruQueue(int frameId) {
+    // if frameId exist in the map then erase
+    auto index = lruMap.find[frameId];
+    if (index != lruMap.end()) {
+        lruQueue.erase(lruQueue.begin() + index);
+    }
+    
+    // move or add the frame to the front
+    lruQueue.push_front(frameId);
+    lruMap[frameId] = lruQueue.begin();
 }
