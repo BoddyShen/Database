@@ -39,9 +39,9 @@ class BufferManager
      */
     void unpinPage(int pageId);
 
-    int BufferManager::findEmptyFrame();
-    int BufferManager::findLRUFrame();
-    void BufferManager::updateLruQueue(int frameId);
+    int findEmptyFrame();
+    int findLRUFrame();
+    void updateLruQueue(int frameId);
 
   private:
     // store pages in a buffer pool
