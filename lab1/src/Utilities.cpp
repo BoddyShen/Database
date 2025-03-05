@@ -23,14 +23,17 @@ string Utilities::rowToString(const Row &row)
 
 
 int Utilities::findEmptyFrame(pageTable) {
-    // find an empty frame and if frames are full then evict a page
+    // find an empty frame
     for (int i = 0; i < pageTable.size(); i++) {
-        if (pageTable == -1) {
+        if (pageTable[i].pageId == -1) {
             return i;
         }
     }
 
+    // and if frames are full then evict a page
     // evict a page using LRU
 
-    return -1;
+    
+
+    // return -1;
 }
