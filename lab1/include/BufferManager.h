@@ -1,6 +1,10 @@
 #ifndef BUFFER_MANAGER_H
 #define BUFFER_MANAGER_H
 
+#include <vector>
+#include <unordered_map>
+#include <fstream>
+#include <cstdint> 
 #include "Constants.h"
 #include "Page.h"
 

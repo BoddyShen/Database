@@ -46,7 +46,7 @@ Page* BufferManager::getPage(int pageId) {
 
         Page* page = new Page();
         dbData.seekg(pageId * MAX_PAGE_SIZE);
-        dbData.read(page->pageData, MAX_PAGE_SIZE);
+        dbData.read(reinterpret_cast<char*>(page->getPageData()), MAX_PAGE_SIZE);
 
         bufferPool[frameIndex] = page;
 
@@ -131,7 +131,8 @@ int BufferManager::findLRUFrame() {
                 // write to disk
                 dbData.seekp(pageId * MAX_PAGE_SIZE);
                 // error pagedata is private 
-                dbData.write(bufferPool[frameId]->pageData, MAX_PAGE_SIZE);
+                dbData.write(reinterpret_cast<const char*>(bufferPool[frameId]->getPageData()), MAX_PAGE_SIZE);
+
 
                 pageMetadata[frameId].isDirty = false;
             }
@@ -145,6 +146,8 @@ int BufferManager::findLRUFrame() {
             return frameId;
         }
     };
+
+    return -1;
 }
 
 void BufferManager::updateLruQueue(int frameId) {

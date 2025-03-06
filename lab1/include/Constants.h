@@ -1,6 +1,8 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 #include <cstddef>
+#include <string>
+
 
 constexpr size_t MOVIE_ID_SIZE = 9;
 constexpr size_t TITLE_SIZE = 30;
