@@ -64,7 +64,7 @@ Page* BufferManager::getPage(int pageId) {
 
 Page* BufferManager::createPage() {
     int frameIndex = findEmptyFrame();
-    int pageId = nextPageId + 1;
+    int pageId = nextPageId++;
 
     // create a new page
     Page* newPage = new Page();
@@ -77,7 +77,7 @@ Page* BufferManager::createPage() {
 
     // update the metadata
     pageMetadata[frameIndex].pageId = pageId;
-    pageMetadata[frameIndex].pinCount = 1;
+    pageMetadata[frameIndex].pinCount += 1;
     pageMetadata[frameIndex].isDirty = true;
 
     // LRU stuffs
@@ -89,7 +89,7 @@ Page* BufferManager::createPage() {
 void BufferManager::markDirty(int pageId) {
     // if it's in the buffer pool
     if (pageTable.find(pageId) != pageTable.end()) {
-        pageMetadata[pageId].isDirty = true;
+        pageMetadata[pageTable[pageId]].isDirty = true;
     }
 
 }
@@ -97,8 +97,8 @@ void BufferManager::markDirty(int pageId) {
 
 void BufferManager::unpinPage(int pageId) {
     if (pageTable.find(pageId) != pageTable.end()) {
-        if (pageMetadata[pageId].pinCount > 0) {
-            pageMetadata[pageId].pinCount--;
+        if (pageMetadata[pageTable[pageId]].pinCount > 0) {
+            pageMetadata[pageTable[pageId]].pinCount--;
         }
     }
 
@@ -109,7 +109,7 @@ int BufferManager::findEmptyFrame() {
     int frameIndex = -1;
     for (int i = 0; i < pageMetadata.size(); i++) {
         if (pageMetadata[i].pageId == -1) {
-            frameIndex = i;
+            return i;
         }
     }
 
@@ -130,10 +130,7 @@ int BufferManager::findLRUFrame() {
             if (pageMetadata[frameId].isDirty) {
                 // write to disk
                 dbData.seekp(pageId * MAX_PAGE_SIZE);
-                // error pagedata is private 
                 dbData.write(reinterpret_cast<const char*>(bufferPool[frameId]->getPageData()), MAX_PAGE_SIZE);
-
-
                 pageMetadata[frameId].isDirty = false;
             }
             // remove from page table
@@ -156,7 +153,6 @@ void BufferManager::updateLruQueue(int frameId) {
     if (it != lruMap.end()) {
         lruQueue.erase(it->second); 
         lruMap.erase(it);
-
     }
     
     // move or add the frame to the front
