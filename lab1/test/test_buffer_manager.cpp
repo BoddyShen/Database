@@ -19,7 +19,7 @@ void testCreateAndGetPage()
     // 1. Create the first page.
     Page *p1 = bm.createPage();
     assert(p1 != nullptr);
-    bm.printStatus();
+    // bm.printStatus();
     cout << "Created page p1." << endl;
 
     // After using p1, unpin it.
@@ -38,7 +38,7 @@ void testCreateAndGetPage()
     Page *p2 = bm.createPage();
     assert(p2 != nullptr);
     cout << "Created page p2." << endl;
-    bm.printStatus();
+    // bm.printStatus();
     // Unpin page 1 (assuming p2 gets assigned page id 1)
     bm.unpinPage(1);
 

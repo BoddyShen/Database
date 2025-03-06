@@ -31,15 +31,18 @@ class Page
      */
     bool isFull();
 
-    uint8_t* getPageData() {
-        return pageData.data();
-    }
+    int getPid();
+
+    void setPid(int pid);
+
+    uint8_t *getPageData() { return pageData.data(); }
 
   private:
     // Fixed-size data buffer (4 KB) for the packed records.
     std::array<uint8_t, MAX_PAGE_SIZE> pageData;
     // The number of rows currently stored in the page.
     int numRecords;
+    int pageId;
 };
 
 #endif // PAGE_H

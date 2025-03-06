@@ -83,8 +83,9 @@ Page *BufferManager::createPage()
     // add the new page to the buffer pool
     bufferPool[frameIndex] = newPage;
 
-    // update the page table
+    // update the page table and page itself
     pageTable[pageId] = frameIndex;
+    newPage->setPid(pageId);
     cout << "pageId: " << pageId << " frameIndex: " << frameIndex << endl;
 
     // update the metadata

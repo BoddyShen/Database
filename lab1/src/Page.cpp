@@ -36,3 +36,7 @@ bool Page::isFull()
     // Checks if adding another record would exceed the page's capacity.
     return ((numRecords + 1) * RECORD_SIZE) > MAX_PAGE_SIZE;
 }
+
+int Page::getPid() const { return pageId; }
+
+void Page::setPid(int pid) { pageId = pid; }
