@@ -46,7 +46,7 @@ Page* BufferManager::getPage(int pageId) {
 
         Page* page = new Page();
         dbData.seekg(pageId * MAX_PAGE_SIZE);
-        dbData.read(page->data, MAX_PAGE_SIZE);
+        dbData.read(page->pageData, MAX_PAGE_SIZE);
 
         bufferPool[frameIndex] = page;
 
@@ -130,7 +130,8 @@ int BufferManager::findLRUFrame() {
             if (pageMetadata[frameId].isDirty) {
                 // write to disk
                 dbData.seekp(pageId * MAX_PAGE_SIZE);
-                dbData.write(bufferPool[frameId]->data, MAX_PAGE_SIZE);
+                // error pagedata is private 
+                dbData.write(bufferPool[frameId]->pageData, MAX_PAGE_SIZE);
 
                 pageMetadata[frameId].isDirty = false;
             }
