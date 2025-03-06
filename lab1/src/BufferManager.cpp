@@ -1,4 +1,5 @@
 #include <fstream>
+#include <iostream>
 #include <unordered_map>
 #include <list>
 #include <vector>
@@ -25,7 +26,7 @@ BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize)
 
     // assume pages in disk are always full
     dbData.seekg(0, std::ios::end);
-    fileSize = dbData.tellg();
+    std::streampos fileSize = dbData.tellg();
     nextPageId = fileSize / MAX_PAGE_SIZE;
 } 
 
@@ -41,27 +42,28 @@ Page* BufferManager::getPage(int pageId) {
             // if the buffer pool is full, evict a page
             // add the new page to the buffer pool
         // return the page
-        int frameIndex = findEmptyFrame(pageTable);
+        int frameIndex = findEmptyFrame();
 
         Page* page = new Page();
         dbData.seekg(pageId * MAX_PAGE_SIZE);
         dbData.read(page->data, MAX_PAGE_SIZE);
 
+        bufferPool[frameIndex] = page;
 
         pageTable[pageId] = frameIndex;
-        pageMetadata[frameId].pageId = pageId;
-        pageMetadata[frameId].isDirty = false;
-        pageMetadata[frameId].pinCount += 1;
+        pageMetadata[frameIndex].pageId = pageId;
+        pageMetadata[frameIndex].isDirty = false;
+        pageMetadata[frameIndex].pinCount += 1;
 
-        updateLruQueue(frameId);
-        return bufferPool[frameId];
+        updateLruQueue(frameIndex);
+        return bufferPool[frameIndex];
     }
 }
 
 
 
 Page* BufferManager::createPage() {
-    int frameIndex = findEmptyFrame(pageTable);
+    int frameIndex = findEmptyFrame();
     int pageId = nextPageId + 1;
 
     // create a new page
@@ -76,7 +78,7 @@ Page* BufferManager::createPage() {
     // update the metadata
     pageMetadata[frameIndex].pageId = pageId;
     pageMetadata[frameIndex].pinCount = 1;
-    pageMetadata[frameIndex].isDirty = ture;
+    pageMetadata[frameIndex].isDirty = true;
 
     // LRU stuffs
     updateLruQueue(frameIndex);
@@ -86,16 +88,16 @@ Page* BufferManager::createPage() {
 
 void BufferManager::markDirty(int pageId) {
     // if it's in the buffer pool
-    if pageTable.find[pageId] != pageTable.end() {
+    if (pageTable.find(pageId) != pageTable.end()) {
         pageMetadata[pageId].isDirty = true;
     }
 
 }
 
 
-void unpinPage(int pageId) {
-    if pageTable.find[pageId] != pageTable.end() {
-        if pageMetadata[pageId].pinCount > 0 {
+void BufferManager::unpinPage(int pageId) {
+    if (pageTable.find(pageId) != pageTable.end()) {
+        if (pageMetadata[pageId].pinCount > 0) {
             pageMetadata[pageId].pinCount--;
         }
     }
@@ -105,16 +107,15 @@ void unpinPage(int pageId) {
 int BufferManager::findEmptyFrame() {
     // find an empty frame
     int frameIndex = -1;
-    for (int i = 0; i < pageTable.size(); i++) {
-        if (pageTable[i].pageId == -1) {
-            frameIndex = pageTable[i];
+    for (int i = 0; i < pageMetadata.size(); i++) {
+        if (pageMetadata[i].pageId == -1) {
+            frameIndex = i;
         }
     }
 
-    frameIndex = findLRUFrame(pageTable);
+    frameIndex = findLRUFrame();
 
     delete bufferPool[frameIndex];
-    bufferPool[frameIndex] = page;
 
     return frameIndex;
 }
@@ -123,10 +124,10 @@ int BufferManager::findLRUFrame() {
     // find the least recently used frame
     for (int i = lruQueue.size() - 1; i >=0; i--) {
         int frameId = lruQueue[i];
-        if (PageMetadata[frameId].pinCount == 0) {
-            int pageId = PageMetadata[frameId].pageId;
+        if (pageMetadata[frameId].pinCount == 0) {
+            int pageId = pageMetadata[frameId].pageId;
 
-            if (PageMetadata[frameId].isDirty) {
+            if (pageMetadata[frameId].isDirty) {
                 // write to disk
                 dbData.seekp(pageId * MAX_PAGE_SIZE);
                 dbData.write(bufferPool[frameId]->data, MAX_PAGE_SIZE);
@@ -147,12 +148,14 @@ int BufferManager::findLRUFrame() {
 
 void BufferManager::updateLruQueue(int frameId) {
     // if frameId exist in the map then erase
-    auto index = lruMap.find[frameId];
-    if (index != lruMap.end()) {
-        lruQueue.erase(lruQueue.begin() + index);
+    auto it = lruMap.find(frameId);
+    if (it != lruMap.end()) {
+        lruQueue.erase(it->second); 
+        lruMap.erase(it);
+
     }
     
     // move or add the frame to the front
-    lruQueue.push_front(frameId);
+    lruQueue.insert(lruQueue.begin(), frameId);
     lruMap[frameId] = lruQueue.begin();
 }

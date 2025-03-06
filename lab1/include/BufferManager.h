@@ -10,7 +10,7 @@ class BufferManager
     const int bufferSize;
 
     // Constructor that initializes bufferSize.
-    BufferManager(int bufferSize) : bufferSize(bufferSize) {}
+    BufferManager(int bufferSize);
 
     /**
      * Fetches a page from memory if available; otherwise, loads it from disk.
@@ -54,7 +54,7 @@ class BufferManager
         int pageId = -1;
         bool isDirty = false;
         int pinCount = 0;
-    }
+    };
 
     std::vector<PageMetadata> pageMetadata;
 
@@ -62,7 +62,7 @@ class BufferManager
     // store frame indexes
     std::vector<int> lruQueue;
     // find the index faster in lruQueue using frameId everytime we access lruQueue
-    std::unordered_map<int, std::list<int>::iterator> lruMap;
+    std::unordered_map<int, std::vector<int>::iterator> lruMap;
 
     std::fstream dbData;
 
