@@ -6,6 +6,7 @@
 #include "Page.h"
 #include <cstdint>
 #include <fstream>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -15,7 +16,7 @@ class BufferManager
     const int bufferSize;
 
     // Constructor that initializes bufferSize.
-    BufferManager(int bufferSize);
+    BufferManager(int bufferSize, const std::string &dbPath);
 
     /**
      * Fetches a page from memory if available; otherwise, loads it from disk.

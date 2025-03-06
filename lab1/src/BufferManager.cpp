@@ -7,7 +7,7 @@
 #include <unordered_map>
 #include <vector>
 
-BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize)
+BufferManager::BufferManager(int bufferSize, const std::string &dbPath) : bufferSize(bufferSize)
 {
     nextPageId = 0;
     // initialize buffer pool and set all the new pages to nullptr, they are empty now
@@ -20,18 +20,20 @@ BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize)
         lruCache->put(i);
     }
 
-    dbData.open(DB_FILE, std::ios::in | std::ios::out | std::ios::binary);
+    dbData.open(dbPath, std::ios::in | std::ios::out | std::ios::binary);
     if (!dbData.is_open()) {
         // create it if not existed
-        dbData.open(DB_FILE, std::ios::out | std::ios::binary);
+        dbData.open(dbPath, std::ios::out | std::ios::binary);
         dbData.close();
-        dbData.open(DB_FILE, std::ios::in | std::ios::out | std::ios::binary);
+        dbData.open(dbPath, std::ios::in | std::ios::out | std::ios::binary);
     }
 
     // assume pages in disk are always full
     dbData.seekg(0, std::ios::end);
     std::streampos fileSize = dbData.tellg();
+    std::cout << "File size: " << fileSize << std::endl;
     nextPageId = fileSize / MAX_PAGE_SIZE;
+    std::cout << "nextPageId: " << nextPageId << std::endl;
 }
 
 Page *BufferManager::getPage(int pageId)
@@ -67,7 +69,12 @@ Page *BufferManager::getPage(int pageId)
 
 Page *BufferManager::createPage()
 {
+
     int frameIndex = findEmptyFrame();
+    if (frameIndex == -1) {
+        std::cerr << "Error: No empty frame found." << std::endl;
+        return nullptr;
+    }
     int pageId = nextPageId++;
 
     // create a new page
@@ -116,9 +123,14 @@ int BufferManager::findEmptyFrame()
         curr = curr->next;
     }
 
+    cout << "No empty frame found, evicting a page..." << endl;
     // If no empty frame is found, evict a page
     int frameIndex = findLRUFrame();
-    delete bufferPool[frameIndex];
+    if (frameIndex == -1) {
+        std::cerr << "Error: No page can be evicted." << std::endl;
+        return -1;
+    }
+    bufferPool[frameIndex] = nullptr;
 
     return frameIndex;
 }
@@ -127,7 +139,7 @@ int BufferManager::findLRUFrame()
 {
     // Find the least recently used frame using the LRUCache
     Node *curr = lruCache->getFirstNode();
-    while (curr != nullptr) {
+    while (curr && curr->next != nullptr) {
         int frameId = curr->val;
         if (pageMetadata[frameId].pinCount == 0) {
             int pageId = pageMetadata[frameId].pageId;
@@ -177,7 +189,7 @@ void BufferManager::printStatus()
     std::cout << "----- LRU Cache Content -----" << std::endl;
     // Iterate through the LRUCache linked list
     Node *curr = lruCache->getFirstNode();
-    while (curr->next != nullptr) { // Skip the dummy tail node
+    while (curr && curr->next != nullptr) { // Skip the dummy tail node
         std::cout << curr->val << " ";
         curr = curr->next;
     }
