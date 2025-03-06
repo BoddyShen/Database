@@ -1,12 +1,13 @@
 #ifndef BUFFER_MANAGER_H
 #define BUFFER_MANAGER_H
 
-#include <vector>
-#include <unordered_map>
-#include <fstream>
-#include <cstdint> 
 #include "Constants.h"
+#include "LRUCache.h"
 #include "Page.h"
+#include <cstdint>
+#include <fstream>
+#include <unordered_map>
+#include <vector>
 
 class BufferManager
 {
@@ -47,11 +48,13 @@ class BufferManager
     int findLRUFrame();
     void updateLruQueue(int frameId);
 
+    void printStatus();
+
   private:
     // store pages in a buffer pool
-    std::vector<Page*> bufferPool;
+    std::vector<Page *> bufferPool;
 
-    // key: page id value: frames
+    // key: pageId, value: frames
     std::unordered_map<int, int> pageTable;
 
     struct PageMetadata {
@@ -62,11 +65,8 @@ class BufferManager
 
     std::vector<PageMetadata> pageMetadata;
 
-    // least used frame would be in the last
-    // store frame indexes
-    std::vector<int> lruQueue;
-    // find the index faster in lruQueue using frameId everytime we access lruQueue
-    std::unordered_map<int, std::vector<int>::iterator> lruMap;
+    // LRUCache for managing the used order of frame indexes
+    LRUCache *lruCache;
 
     std::fstream dbData;
 
