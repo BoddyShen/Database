@@ -1,9 +1,11 @@
 #include "BufferManager.h"
 #include "Constants.h"
+#include "Utilities.h"
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <list>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -54,6 +56,9 @@ Page *BufferManager::getPage(int pageId)
         Page *page = new Page();
         dbData.seekg(pageId * MAX_PAGE_SIZE);
         dbData.read(reinterpret_cast<char *>(page->getPageData()), MAX_PAGE_SIZE);
+        int num;
+        std::memcpy(&num, page->getPageData(), sizeof(num));
+        page->setNumRecords(num);
 
         bufferPool[frameIndex] = page;
 
@@ -86,7 +91,6 @@ Page *BufferManager::createPage()
     // update the page table and page itself
     pageTable[pageId] = frameIndex;
     newPage->setPid(pageId);
-    cout << "pageId: " << pageId << " frameIndex: " << frameIndex << endl;
 
     // update the metadata
     pageMetadata[frameIndex].pageId = pageId;
@@ -142,14 +146,25 @@ int BufferManager::findLRUFrame()
     Node *curr = lruCache->getFirstNode();
     while (curr && curr->next != nullptr) {
         int frameId = curr->val;
+        cout << "Checking frame " << frameId << "..." << endl;
+
         if (pageMetadata[frameId].pinCount == 0) {
+            cout << "Evicting frame " << frameId << " (page id:" << pageMetadata[frameId].pageId
+                 << ")..." << endl;
             int pageId = pageMetadata[frameId].pageId;
 
             if (pageMetadata[frameId].isDirty) {
                 // write to disk
+                cout << "Writing page " << pageId << " to disk..." << endl;
+                Page *evictedPage = bufferPool[frameId];
                 dbData.seekp(pageId * MAX_PAGE_SIZE);
-                dbData.write(reinterpret_cast<const char *>(bufferPool[frameId]->getPageData()),
+                dbData.write(reinterpret_cast<const char *>(evictedPage->getPageData()),
                              MAX_PAGE_SIZE);
+                dbData.flush();
+                if (dbData.fail()) {
+                    cerr << "Error writing page " << pageId << " to disk!" << endl;
+                }
+
                 pageMetadata[frameId].isDirty = false;
             }
             // remove from page table

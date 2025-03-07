@@ -35,6 +35,10 @@ class Page
 
     void setPid(int pid);
 
+    int getNumRecords() { return numRecords; }
+
+    void setNumRecords(int num) { numRecords = num; }
+
     uint8_t *getPageData() { return pageData.data(); }
 
   private:
