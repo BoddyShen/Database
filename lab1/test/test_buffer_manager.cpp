@@ -67,12 +67,111 @@ void testCreateAndGetPage()
     cout << "Test createPage and getPage passed!" << endl;
 }
 
+void testInterleavedInsertAndQuery()
+{
+    cout << "Test: Interleaved Insert and Query" << endl;
+
+    // Create a BufferManager with 2 frames and a test database file.
+    BufferManager bm(2, TEST_DB_FILE);
+
+    // 1. Create a new page.
+    Page *p = bm.createPage();
+    int pid0 = p->getPid();
+    cout << "Created page with pageId " << pid0 << endl;
+
+    // 2. Insert a few rows into the page (but do not fill it completely).
+    bm.markDirty(pid0);
+    int rowId1 = p->insertRow(Row("id000001", "Movie One"));
+    int rowId2 = p->insertRow(Row("id000002", "Movie Two"));
+    assert(rowId1 == 0);
+    assert(rowId2 == 1);
+    cout << "Inserted rows " << rowId1 << " and " << rowId2 << " into page " << pid0 << endl;
+
+    // Check that the rows were inserted correctly.
+    Page *p0 = bm.getPage(pid0);
+    assert(p0 == p);
+    Row *p0r0 = p0->getRow(0);
+    string p0r0Str = Utilities::rowToString(*p0r0);
+    assert(p0r0Str == "Movie ID: id000001, Title: Movie One");
+    Row *p0r1 = p0->getRow(1);
+    string p0r1Str = Utilities::rowToString(*p0r1);
+    assert(p0r1Str == "Movie ID: id000002, Title: Movie Two");
+
+    // Unpin the page so it can be evicted.
+    bm.unpinPage(pid0);
+    bm.unpinPage(pid0);
+
+    // 3. Create additional pages to fill up the buffer.
+    // Create second page.
+    Page *p1 = bm.createPage();
+    int pid1 = p1->getPid();
+    cout << "Created page with pageId " << pid1 << endl;
+    // Insert a row into p1.
+    bm.markDirty(pid1);
+    int rowId_p1 = p1->insertRow(Row("id000003", "Movie Three"));
+    assert(rowId_p1 == 0);
+    bm.unpinPage(pid1);
+
+    // Create one more page, which will force eviction since capacity is 2.
+    Page *p2 = bm.createPage();
+    int pid2 = p2->getPid();
+    cout << "Created page with pageId " << pid2 << " (trigger eviction)" << endl;
+    // Insert a row into p2.
+    bm.markDirty(pid2);
+    int rowId_p2 = p2->insertRow(Row("id000004", "Movie Four"));
+    assert(rowId_p2 == 0);
+    bm.unpinPage(pid2);
+
+    // 4. Access the original page.
+    Page *p0_reloaded = bm.getPage(pid0);
+    cout << "Number of records: " << p0_reloaded->getNumRecords() << endl;
+    // The page was evicted, p_reloaded will be a new pointer (not equal to p).
+    assert(p0_reloaded != p0);
+    bm.unpinPage(pid0);
+
+    // 5. Insert an additional row into the reloaded page.
+    bm.markDirty(pid0);
+    int rowId3 = p0_reloaded->insertRow(Row("id000005", "Movie Five"));
+    cout << "Inserted row " << rowId3 << " into page " << pid0 << " after reloading." << endl;
+    bm.unpinPage(pid0);
+
+    // 6. Validate the content of the page.
+    // Retrieve row 0 (should be "Movie One").
+    Row *p0r0_reloaded = p0_reloaded->getRow(0);
+    string p0r0Str_reloaded = Utilities::rowToString(*p0r0_reloaded);
+    cout << p0r0Str_reloaded << endl;
+    string expectedR0 = "Movie ID: id000001, Title: Movie One";
+    assert(p0r0Str_reloaded == expectedR0);
+    cout << "Assert Row 0 reloaded successfully." << endl;
+
+    // Retrieve row 1 (should be "Movie Two").
+    Row *p0r1_reloaded = p0_reloaded->getRow(1);
+    string p0r1Str_reloaded = Utilities::rowToString(*p0r1_reloaded);
+    string expectedR1 = "Movie ID: id000002, Title: Movie Two";
+    assert(p0r1Str_reloaded == expectedR1);
+
+    // Retrieve the additional inserted row (should be "Movie Five").
+    Row *p0r2_reloaded = p0_reloaded->getRow(rowId3);
+    string p0r2Str_reloaded = Utilities::rowToString(*p0r2_reloaded);
+    string expectedR2 = "Movie ID: id000005, Title: Movie Five";
+    assert(p0r2Str_reloaded == expectedR2);
+
+    cout << "Test interleaved insert and query passed." << endl;
+}
+
 int main()
 {
+    // Remove the test database file if it exists.
     std::remove(TEST_DB_FILE.c_str());
 
-    cout << "### Running BufferManager Tests ###" << endl;
+    cout << endl << "### Running BufferManager Tests ###" << endl;
     testCreateAndGetPage();
-    cout << "All BufferManager tests passed!" << endl;
+
+    std::remove(TEST_DB_FILE.c_str());
+
+    cout << endl << "### Running BufferManager Interleaved Test ###" << endl;
+    testInterleavedInsertAndQuery();
+
+    cout << endl << "All BufferManager tests passed!" << endl;
     return 0;
 }
