@@ -2,7 +2,13 @@
 #define BUFFER_MANAGER_H
 
 #include "Constants.h"
+#include "LRUCache.h"
 #include "Page.h"
+#include <cstdint>
+#include <fstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 class BufferManager
 {
@@ -10,7 +16,7 @@ class BufferManager
     const int bufferSize;
 
     // Constructor that initializes bufferSize.
-    BufferManager(int bufferSize) : bufferSize(bufferSize) {}
+    BufferManager(int bufferSize, const std::string &dbPath);
 
     /**
      * Fetches a page from memory if available; otherwise, loads it from disk.
@@ -38,6 +44,34 @@ class BufferManager
      * @param pageId The ID of the page to unpin.
      */
     void unpinPage(int pageId);
+
+    int findEmptyFrame();
+    int findLRUFrame();
+    void updateLruQueue(int frameId);
+
+    void printStatus();
+
+  private:
+    // store pages in a buffer pool
+    std::vector<Page *> bufferPool;
+
+    // key: pageId, value: frames
+    std::unordered_map<int, int> pageTable;
+
+    struct PageMetadata {
+        int pageId = -1;
+        bool isDirty = false;
+        int pinCount = 0;
+    };
+
+    std::vector<PageMetadata> pageMetadata;
+
+    // LRUCache for managing the used order of frame indexes
+    LRUCache *lruCache;
+
+    std::fstream dbData;
+
+    int nextPageId;
 };
 
 #endif // BUFFER_MANAGER_H
