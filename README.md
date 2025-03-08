@@ -2,6 +2,7 @@
 
 - A C++ compiler (e.g., g++)
 - GNU Make
+- Add `title.basics.tsv` in lab1 folder
 
 ## How to Build and Run
 
@@ -25,10 +26,16 @@ make run
 
 ### Test the Project
 
-To test the project in test folder, enter each lab folder and run:
+To do unit test on the project in `test_unit` folder, enter each lab folder and run:
 
 ```
-make test
+make unittest
+```
+
+To do end-to-end test on the project in `test_end2end` folder, enter each lab folder and run:
+
+```
+make end2endtest
 ```
 
 ### Clean the Project

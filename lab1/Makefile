@@ -4,7 +4,8 @@ CXXFLAGS = -std=c++17 -Wall -Iinclude
 
 # Directories
 SRC_DIR = src
-TEST_DIR = test
+TEST_UNIT_DIR = test_unit
+TEST_END2END_DIR = test_end2end
 OBJ_DIR = build
 
 # Production binary
@@ -15,11 +16,31 @@ PROD_OBJECTS = $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(PROD_SOURCES))
 # Filter out main.o (from src/main.cpp) for test linking
 PROD_OBJECTS_FOR_TEST = $(filter-out $(OBJ_DIR)/main.o, $(PROD_OBJECTS))
 
-# Test source files and corresponding test binaries
-# (Assuming each .cpp file in the test directory has its own main())
-TEST_SOURCES = $(wildcard $(TEST_DIR)/*.cpp)
-TEST_BINS = $(patsubst $(TEST_DIR)/%.cpp, $(OBJ_DIR)/%, $(TEST_SOURCES))
+#####################
+# Unit test binaries
+#####################
+TEST_UNIT_SOURCES = $(wildcard $(TEST_UNIT_DIR)/*.cpp)
+# Prepend "unit_" to avoid name collision
+TEST_UNIT_BINS = $(patsubst $(TEST_UNIT_DIR)/%.cpp, $(OBJ_DIR)/unit_%, $(TEST_UNIT_SOURCES))
 
+# For each unit test source file, build an independent binary (excluding main.o)
+$(OBJ_DIR)/unit_%: $(TEST_UNIT_DIR)/%.cpp $(PROD_OBJECTS_FOR_TEST) | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $< $(PROD_OBJECTS_FOR_TEST) -o $@
+
+###########################
+# End-to-end test binaries
+###########################
+TEST_END2END_SOURCES = $(wildcard $(TEST_END2END_DIR)/*.cpp)
+# Prepend "e2e_" to avoid name collision
+TEST_END2END_BINS = $(patsubst $(TEST_END2END_DIR)/%.cpp, $(OBJ_DIR)/e2e_%, $(TEST_END2END_SOURCES))
+
+# For each end-to-end test source file, build an independent binary (excluding main.o)
+$(OBJ_DIR)/e2e_%: $(TEST_END2END_DIR)/%.cpp $(PROD_OBJECTS_FOR_TEST) | $(OBJ_DIR)
+	$(CXX) $(CXXFLAGS) $< $(PROD_OBJECTS_FOR_TEST) -o $@
+
+##################################
+# Production binary build section
+##################################
 # Link production object files to create the production binary
 $(BIN): $(PROD_OBJECTS)
 	$(CXX) $(PROD_OBJECTS) -o $(BIN)
@@ -28,14 +49,16 @@ $(BIN): $(PROD_OBJECTS)
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# For each test source file, build an independent binary (excluding main.o)
-$(OBJ_DIR)/%: $(TEST_DIR)/%.cpp $(PROD_OBJECTS_FOR_TEST) | $(OBJ_DIR)
-	$(CXX) $(CXXFLAGS) $< $(PROD_OBJECTS_FOR_TEST) -o $@
-
+##################################
+# Build directory
+##################################
 # Create the build directory if it does not exist
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
+##################################
+# Targets
+##################################
 # Default target: build the production binary
 all: $(BIN)
 
@@ -43,9 +66,16 @@ all: $(BIN)
 run: all
 	./$(BIN)
 
-# Test target: build all test binaries and run them one by one
-test: $(TEST_BINS)
-	@for test_exe in $(TEST_BINS); do \
+# Unit test target: build and run all unit test binaries
+unittest: $(TEST_UNIT_BINS)
+	@for test_exe in $(TEST_UNIT_BINS); do \
+		echo "Running $$test_exe..."; \
+		./$$test_exe; \
+	done
+
+# End-to-end test target: build and run all end-to-end test binaries
+end2endtest: $(TEST_END2END_BINS)
+	@for test_exe in $(TEST_END2END_BINS); do \
 		echo "Running $$test_exe..."; \
 		./$$test_exe; \
 	done
@@ -54,4 +84,4 @@ test: $(TEST_BINS)
 clean:
 	rm -rf $(OBJ_DIR) $(BIN)
 
-.PHONY: all run test clean
+.PHONY: all run unittest end2endtest clean
