@@ -1,4 +1,5 @@
 #include "LRUCache.h"
+#include <cassert>
 
 Node::Node(int val) : val(val), prev(nullptr), next(nullptr) {}
 
@@ -22,6 +23,8 @@ LRUCache::~LRUCache()
     }
 }
 
+int LRUCache::getSize() { return cache.size(); }
+
 // Put val into the cache, update position in LRU.
 void LRUCache::put(int val)
 {
@@ -29,13 +32,7 @@ void LRUCache::put(int val)
         Node *node = cache[val];
         moveToTail(node);
     } else {
-        if (cache.size() >= _capacity) {
-            // Remove the least recently used node (first real node after head).
-            Node *lru = head->next;
-            removeNode(lru);
-            cache.erase(lru->val);
-            delete lru;
-        }
+        assert(cache.size() <= _capacity);
         Node *newNode = new Node(val);
         cache[val] = newNode;
         addToTail(newNode);
@@ -43,6 +40,15 @@ void LRUCache::put(int val)
 }
 
 Node *LRUCache::getFirstNode() { return head->next; }
+
+void LRUCache::remove(int val)
+{
+    assert(cache.find(val) != cache.end());
+    Node *node = cache[val];
+    removeNode(node);
+    cache.erase(val);
+    delete node;
+}
 
 // Helper method: Remove a node from the doubly linked list.
 void LRUCache::removeNode(Node *node)

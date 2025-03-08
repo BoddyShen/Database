@@ -45,15 +45,17 @@ class BufferManager
      */
     void unpinPage(int pageId);
 
+  private:
     int findEmptyFrame();
+
     int findLRUFrame();
+
     void updateLruQueue(int frameId);
 
     void printStatus();
 
-  private:
     // store pages in a buffer pool
-    std::vector<Page *> bufferPool;
+    std::vector<Page> bufferPool;
 
     // key: pageId, value: frames
     std::unordered_map<int, int> pageTable;
