@@ -159,6 +159,31 @@ void testInterleavedInsertAndQuery()
     cout << "Test interleaved insert and query passed." << endl;
 }
 
+void testNoEmptyFrame()
+{
+    cout << "Test: No Empty Frame when all pages are pinned" << endl;
+
+    // Create a BufferManager with only 1 frame and a test database file.
+    BufferManager bm(1, TEST_DB_FILE);
+
+    // 1. Create a page. This page will be pinned (its pin count will be > 0).
+    Page *p = bm.createPage();
+    assert(p != nullptr);
+    int pid = p->getPid();
+    cout << "Created page with pageId " << pid << endl;
+
+    // Do not unpin the page so that it remains pinned.
+    // 2. Attempt to create another page.
+    // Since the buffer pool only has 1 frame and that frame is already pinned,
+    // there is no empty frame available.
+    // Therefore, createPage should return nullptr.
+    Page *p2 = bm.createPage();
+    assert(p2 == nullptr);
+    cout << "As expected, no empty frame is available (createPage returned nullptr)." << endl;
+
+    cout << "Test no empty frame passed." << endl;
+}
+
 int main()
 {
     // Remove the test database file if it exists.
@@ -171,6 +196,9 @@ int main()
 
     cout << endl << "### Running BufferManager Interleaved Test ###" << endl;
     testInterleavedInsertAndQuery();
+
+    std::remove(TEST_DB_FILE.c_str());
+    testNoEmptyFrame();
 
     cout << endl << "All BufferManager tests passed!" << endl;
     return 0;
