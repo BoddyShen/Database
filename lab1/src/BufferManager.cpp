@@ -1,6 +1,7 @@
 #include "BufferManager.h"
 #include "Constants.h"
 #include "Utilities.h"
+#include <cassert>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -8,7 +9,6 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <cassert>
 
 BufferManager::BufferManager(int bufferSize, const std::string &dbPath) : bufferSize(bufferSize)
 {
@@ -56,7 +56,8 @@ Page *BufferManager::getPage(int pageId)
         if (frameIndex == -1) return nullptr;
 
         // load the requested page from disk
-        // we assume the disk file contains the page, the pid check logic should be implemented by the caller
+        // we assume the disk file contains the page, the pid check logic should be implemented by
+        // the caller
         Page *page = &bufferPool[frameIndex];
         page->setPid(pageId);
         dbData.seekg(pageId * MAX_PAGE_SIZE);
@@ -132,9 +133,8 @@ void BufferManager::unpinPage(int pageId)
 int BufferManager::findEmptyFrame()
 {
     // Find an empty frame
-    for (int i = 0; i < bufferSize; i++)
-    {
-        if (pageMetadata[i].pageId == -1) return i; 
+    for (int i = 0; i < bufferSize; i++) {
+        if (pageMetadata[i].pageId == -1) return i;
     }
 
     cout << "No empty frame found, evicting a page..." << endl;
