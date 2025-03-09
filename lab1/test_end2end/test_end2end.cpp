@@ -15,6 +15,7 @@ using namespace std;
 
 void loading()
 {
+    // Remove existing database file to start with a clean slate.
     remove(DB_FILE.c_str());
     BufferManager bm(FRAME_SIZE, DB_FILE);
 
@@ -27,37 +28,38 @@ void loading()
 
     string header;
     getline(tsvFile, header);
+    cout << "Header: " << header << endl;
 
-    // Create the first append page, all data will be inserted into this page
+    // Create the first append page; all data will be inserted into this page.
     Page *appendPage = bm.createPage();
     int appendPid = appendPage->getPid();
     cout << "Initial append page id: " << appendPid << endl;
 
-    // 逐行讀取 TSV 檔案
+    // Read the TSV file line by line.
     string line;
     int loadedRows = 0;
     while (getline(tsvFile, line)) {
-        // 使用 tab 分隔解析行資料
         loadedRows++;
+        // Parse the line using tab as a delimiter.
         istringstream iss(line);
         vector<string> tokens;
         string token;
         while (getline(iss, token, '\t')) {
             tokens.push_back(token);
         }
-        // 假設 tconst 在第0欄，primaryTitle 在第2欄（請根據實際檔案格式調整）
+
         if (tokens.size() < 3) continue;
         string movieId = tokens[0];
         string title = tokens[2];
 
-        // 截斷資料到固定長度：movieId 9 個字元，title 30 個字元
+        // Truncate data to fixed length: movieId to 9 characters, title to 30 characters.
         if (movieId.size() > 9) movieId = movieId.substr(0, 9);
         if (title.size() > 30) title = title.substr(0, 30);
 
-        // 建立 Row 物件，假設 Row 有接受 C-string 的建構子
+        // Create a Row object, assuming Row has a constructor accepting C-string.
         Row row(movieId.c_str(), title.c_str());
 
-        // 若當前頁面已滿，先 unpin，再建立新頁面
+        // If the current page is full, unpin it and create a new page.
         if (appendPage->isFull()) {
             bm.unpinPage(appendPid);
             appendPage = bm.createPage();
@@ -66,7 +68,7 @@ void loading()
             cout << "Created new append page, id: " << appendPid << endl;
         }
 
-        // 插入資料到當前附加頁面
+        // Insert the row into the current append page.
         int rowId = appendPage->insertRow(row);
         if (rowId == -1) {
             cerr << "Failed to insert row into page " << appendPid << endl;
@@ -75,7 +77,7 @@ void loading()
 
     tsvFile.close();
 
-    // // 載入結束後，解除最後一個附加頁面的 pin
+    // After loading, unpin the last append page.
     bm.unpinPage(appendPid);
 
     cout << "Loaded " << loadedRows << " rows into the Movies table." << endl;
