@@ -17,8 +17,11 @@ class LRUCache
     LRUCache(int capacity);
     ~LRUCache();
 
+    int getSize();
+
     void put(int val);
     Node *getFirstNode();
+    void remove(int val);
 
   private:
     int _capacity;

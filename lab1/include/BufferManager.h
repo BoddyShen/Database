@@ -15,8 +15,17 @@ class BufferManager
   public:
     const int bufferSize;
 
-    // Constructor that initializes bufferSize.
+    /**
+     * Constructor that initializes the BufferManager.
+     * @param bufferSize The size of the buffer pool.
+     * @param dbPath The path to the database file.
+     */
     BufferManager(int bufferSize, const std::string &dbPath);
+
+    /**
+     * Destructor that writes all dirty pages to disk.
+     */
+    ~BufferManager();
 
     /**
      * Fetches a page from memory if available; otherwise, loads it from disk.
@@ -45,15 +54,20 @@ class BufferManager
      */
     void unpinPage(int pageId);
 
-    int findEmptyFrame();
-    int findLRUFrame();
-    void updateLruQueue(int frameId);
-
+    /**
+     * Prints the status of the BufferManager (debug use).
+     */
     void printStatus();
 
   private:
+    int findEmptyFrame();
+
+    int findLRUFrame();
+
+    void updateLruQueue(int frameId);
+
     // store pages in a buffer pool
-    std::vector<Page *> bufferPool;
+    std::vector<Page> bufferPool;
 
     // key: pageId, value: frames
     std::unordered_map<int, int> pageTable;

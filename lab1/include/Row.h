@@ -4,6 +4,7 @@
 #include "Constants.h"
 #include <array>
 #include <cstdint>
+#include <cstring>
 
 /**
  * Struct representing a database row containing primitive data types ONLY

@@ -1,6 +1,7 @@
 #include "BufferManager.h"
 #include "Constants.h"
 #include "Utilities.h"
+#include <cassert>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -12,8 +13,8 @@
 BufferManager::BufferManager(int bufferSize, const std::string &dbPath) : bufferSize(bufferSize)
 {
     nextPageId = 0;
-    // initialize buffer pool and set all the new pages to nullptr, they are empty now
-    bufferPool.resize(bufferSize, nullptr);
+    // initialize buffer pool
+    bufferPool.resize(bufferSize);
     // initialize page table with default values (header file)
     pageMetadata.resize(bufferSize);
     // initialize LRU double linked list with fixed bufferSize
@@ -38,37 +39,60 @@ BufferManager::BufferManager(int bufferSize, const std::string &dbPath) : buffer
     std::cout << "nextPageId: " << nextPageId << std::endl;
 }
 
+BufferManager::~BufferManager()
+{
+    // write all dirty pages to disk
+    for (int i = 0; i < bufferSize; i++) {
+        if (pageMetadata[i].isDirty) {
+            int pageId = pageMetadata[i].pageId;
+            Page *dirtyPage = &bufferPool[i];
+            dbData.seekp(pageId * MAX_PAGE_SIZE);
+            dbData.write(reinterpret_cast<const char *>(dirtyPage->getPageData()), MAX_PAGE_SIZE);
+            dbData.flush();
+            if (dbData.fail()) {
+                std::cerr << "Error writing page " << pageId << " to disk!" << std::endl;
+                exit(0);
+            }
+        }
+    }
+    dbData.close();
+    delete lruCache;
+}
+
 Page *BufferManager::getPage(int pageId)
 {
-    // if it's in the buffer pool, return it and update the lru
+    // if it's in the buffer pool, return the pointer to it and update the lru
     if (pageTable.find(pageId) != pageTable.end()) {
         int frameIndex = pageTable[pageId];
+        assert(pageMetadata[frameIndex].pageId == pageId);
         pageMetadata[frameIndex].pinCount++;
         updateLruQueue(frameIndex);
-        return bufferPool[frameIndex];
+        return &bufferPool[frameIndex];
     } else {
         // if it's not in the buffer pool, load it from disk
-        // if the buffer pool is full, evict a page
-        // add the new page to the buffer pool
-        // return the page
         int frameIndex = findEmptyFrame();
 
-        Page *page = new Page();
+        // if the buffer pool is full and all pages are pinned, return nullptr
+        if (frameIndex == -1) return nullptr;
+
+        // load the requested page from disk
+        // we assume the disk file contains the page, the pid check logic should be implemented by
+        // the caller
+        Page *page = &bufferPool[frameIndex];
+        page->setPid(pageId);
         dbData.seekg(pageId * MAX_PAGE_SIZE);
         dbData.read(reinterpret_cast<char *>(page->getPageData()), MAX_PAGE_SIZE);
         int num;
         std::memcpy(&num, page->getPageData(), sizeof(num));
         page->setNumRecords(num);
 
-        bufferPool[frameIndex] = page;
-
         pageTable[pageId] = frameIndex;
         pageMetadata[frameIndex].pageId = pageId;
         pageMetadata[frameIndex].isDirty = false;
-        pageMetadata[frameIndex].pinCount += 1;
+        pageMetadata[frameIndex].pinCount = 1;
 
         updateLruQueue(frameIndex);
-        return bufferPool[frameIndex];
+        return page;
     }
 }
 
@@ -82,11 +106,9 @@ Page *BufferManager::createPage()
     }
     int pageId = nextPageId++;
 
-    // create a new page
-    Page *newPage = new Page();
-
     // add the new page to the buffer pool
-    bufferPool[frameIndex] = newPage;
+    bufferPool[frameIndex] = Page();
+    Page *newPage = &bufferPool[frameIndex];
 
     // update the page table and page itself
     pageTable[pageId] = frameIndex;
@@ -94,7 +116,7 @@ Page *BufferManager::createPage()
 
     // update the metadata
     pageMetadata[frameIndex].pageId = pageId;
-    pageMetadata[frameIndex].pinCount += 1;
+    pageMetadata[frameIndex].pinCount = 1;
     pageMetadata[frameIndex].isDirty = true;
 
     // LRU stuffs
@@ -107,6 +129,8 @@ void BufferManager::markDirty(int pageId)
     // if it's in the buffer pool
     if (pageTable.find(pageId) != pageTable.end()) {
         pageMetadata[pageTable[pageId]].isDirty = true;
+    } else {
+        cerr << "page " << pageId << " not found in buffer pool!" << endl;
     }
 }
 
@@ -115,17 +139,19 @@ void BufferManager::unpinPage(int pageId)
     if (pageTable.find(pageId) != pageTable.end()) {
         if (pageMetadata[pageTable[pageId]].pinCount > 0) {
             pageMetadata[pageTable[pageId]].pinCount--;
+        } else {
+            cerr << "page pinCoint is already 0!" << endl;
         }
+    } else {
+        cerr << "page " << pageId << " not found in buffer pool!" << endl;
     }
 }
 
 int BufferManager::findEmptyFrame()
 {
     // Find an empty frame
-    Node *curr = lruCache->getFirstNode();
-    while (curr != nullptr) {
-        if (pageMetadata[curr->val].pageId == -1) return curr->val;
-        curr = curr->next;
+    for (int i = 0; i < bufferSize; i++) {
+        if (pageMetadata[i].pageId == -1) return i;
     }
 
     cout << "No empty frame found, evicting a page..." << endl;
@@ -135,13 +161,13 @@ int BufferManager::findEmptyFrame()
         std::cerr << "Error: No page can be evicted." << std::endl;
         return -1;
     }
-    bufferPool[frameIndex] = nullptr;
 
     return frameIndex;
 }
 
 int BufferManager::findLRUFrame()
 {
+    assert(lruCache->getSize() == bufferSize);
     // Find the least recently used frame using the LRUCache
     Node *curr = lruCache->getFirstNode();
     while (curr && curr->next != nullptr) {
@@ -156,17 +182,20 @@ int BufferManager::findLRUFrame()
             if (pageMetadata[frameId].isDirty) {
                 // write to disk
                 cout << "Writing page " << pageId << " to disk..." << endl;
-                Page *evictedPage = bufferPool[frameId];
+                Page *evictedPage = &bufferPool[frameId];
                 dbData.seekp(pageId * MAX_PAGE_SIZE);
                 dbData.write(reinterpret_cast<const char *>(evictedPage->getPageData()),
                              MAX_PAGE_SIZE);
                 dbData.flush();
                 if (dbData.fail()) {
                     cerr << "Error writing page " << pageId << " to disk!" << endl;
+                    exit(0);
                 }
 
                 pageMetadata[frameId].isDirty = false;
             }
+            // remove from LRU cache
+            lruCache->remove(frameId);
             // remove from page table
             pageTable.erase(pageId);
 
@@ -184,9 +213,13 @@ void BufferManager::updateLruQueue(int frameId) { lruCache->put(frameId); }
 void BufferManager::printStatus()
 {
     std::cout << "===== Buffer Pool Status =====" << std::endl;
+    cout << "Page table content:" << endl;
+    for (auto a : pageTable) {
+        cout << "pageId: " << a.first << " frameId: " << a.second << endl;
+    }
     for (size_t i = 0; i < bufferPool.size(); i++) {
         std::cout << "Frame " << i << ": ";
-        if (bufferPool[i] != nullptr) {
+        if (pageMetadata[i].pageId != -1) {
             std::cout << "Page ID = " << pageMetadata[i].pageId
                       << ", Pin Count = " << pageMetadata[i].pinCount << ", "
                       << (pageMetadata[i].isDirty ? "Dirty" : "Clean") << std::endl;
@@ -194,7 +227,7 @@ void BufferManager::printStatus()
             std::cout << "  Page Data (first 16 bytes): ";
             for (int j = 0; j < 16 && j < MAX_PAGE_SIZE; j++) {
                 std::cout << std::setw(2) << std::setfill('0') << std::hex
-                          << static_cast<int>(bufferPool[i]->getPageData()[j]) << " ";
+                          << static_cast<int>(bufferPool[i].getPageData()[j]) << " ";
             }
             std::cout << std::dec << std::setfill(' ') << std::endl;
         } else {
@@ -203,6 +236,7 @@ void BufferManager::printStatus()
     }
 
     std::cout << "----- LRU Cache Content -----" << std::endl;
+    cout << "LRU cache size: " << lruCache->getSize() << endl;
     // Iterate through the LRUCache linked list
     Node *curr = lruCache->getFirstNode();
     while (curr && curr->next != nullptr) { // Skip the dummy tail node
