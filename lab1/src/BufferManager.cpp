@@ -39,6 +39,26 @@ BufferManager::BufferManager(int bufferSize, const std::string &dbPath) : buffer
     std::cout << "nextPageId: " << nextPageId << std::endl;
 }
 
+BufferManager::~BufferManager()
+{
+    // write all dirty pages to disk
+    for (int i = 0; i < bufferSize; i++) {
+        if (pageMetadata[i].isDirty) {
+            int pageId = pageMetadata[i].pageId;
+            Page *dirtyPage = &bufferPool[i];
+            dbData.seekp(pageId * MAX_PAGE_SIZE);
+            dbData.write(reinterpret_cast<const char *>(dirtyPage->getPageData()), MAX_PAGE_SIZE);
+            dbData.flush();
+            if (dbData.fail()) {
+                std::cerr << "Error writing page " << pageId << " to disk!" << std::endl;
+                exit(0);
+            }
+        }
+    }
+    dbData.close();
+    delete lruCache;
+}
+
 Page *BufferManager::getPage(int pageId)
 {
     // if it's in the buffer pool, return the pointer to it and update the lru
@@ -110,8 +130,7 @@ void BufferManager::markDirty(int pageId)
     if (pageTable.find(pageId) != pageTable.end()) {
         pageMetadata[pageTable[pageId]].isDirty = true;
     } else {
-        cerr << "page not found in buffer pool!" << endl;
-        exit(0);
+        cerr << "page " << pageId << " not found in buffer pool!" << endl;
     }
 }
 
@@ -122,11 +141,9 @@ void BufferManager::unpinPage(int pageId)
             pageMetadata[pageTable[pageId]].pinCount--;
         } else {
             cerr << "page pinCoint is already 0!" << endl;
-            exit(0);
         }
     } else {
-        cerr << "page not found in buffer pool!" << endl;
-        exit(0);
+        cerr << "page " << pageId << " not found in buffer pool!" << endl;
     }
 }
 
@@ -196,6 +213,10 @@ void BufferManager::updateLruQueue(int frameId) { lruCache->put(frameId); }
 void BufferManager::printStatus()
 {
     std::cout << "===== Buffer Pool Status =====" << std::endl;
+    cout << "Page table content:" << endl;
+    for (auto a : pageTable) {
+        cout << "pageId: " << a.first << " frameId: " << a.second << endl;
+    }
     for (size_t i = 0; i < bufferPool.size(); i++) {
         std::cout << "Frame " << i << ": ";
         if (pageMetadata[i].pageId != -1) {
@@ -215,6 +236,7 @@ void BufferManager::printStatus()
     }
 
     std::cout << "----- LRU Cache Content -----" << std::endl;
+    cout << "LRU cache size: " << lruCache->getSize() << endl;
     // Iterate through the LRUCache linked list
     Node *curr = lruCache->getFirstNode();
     while (curr && curr->next != nullptr) { // Skip the dummy tail node

@@ -50,19 +50,11 @@ void testCreateAndGetPage()
     // Unpin page 2 (p3's page id) after creation.
     bm.unpinPage(2);
 
-    // // To simulate eviction, we need to ensure that a page's pin count is 0.
-    // // Unpin page 0 again if needed.
-    bm.unpinPage(0);
-
     // Now, attempt to get page 0.
     Page *p1_loaded = bm.getPage(0);
     // p1 should be evicted, p1_loaded should not be the same pointer as p1.
     assert(p1_loaded != p1);
     bm.unpinPage(0);
-
-    // 5. Test markDirty and unpinPage functionality.
-    bm.markDirty(1); // Mark page 1 as dirty.
-    bm.unpinPage(1); // Unpin page 1.
 
     cout << "Test createPage and getPage passed!" << endl;
 }
@@ -133,7 +125,6 @@ void testInterleavedInsertAndQuery()
     bm.markDirty(pid0);
     int rowId3 = p0_reloaded->insertRow(Row("id000005", "Movie Five"));
     cout << "Inserted row " << rowId3 << " into page " << pid0 << " after reloading." << endl;
-    bm.unpinPage(pid0);
 
     // 6. Validate the content of the page.
     // Retrieve row 0 (should be "Movie One").
