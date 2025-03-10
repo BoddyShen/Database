@@ -246,3 +246,26 @@ void BufferManager::printStatus()
     std::cout << std::endl;
     std::cout << "==============================" << std::endl;
 }
+
+void BufferManager::flushAll()
+{
+    // Iterate through all frames in the buffer pool.
+    for (size_t i = 0; i < bufferPool.size(); i++) {
+        // If the frame is empty (pageId == -1), skip it.
+        if (pageMetadata[i].pageId != -1) continue;
+
+        // If the page is dirty, write it to disk.
+        if (pageMetadata[i].isDirty) {
+            int pageId = pageMetadata[i].pageId;
+            cout << "Flushing page " << pageId << " from frame " << i << " to disk." << endl;
+            dbData.seekp(pageId * MAX_PAGE_SIZE);
+            dbData.write(reinterpret_cast<const char *>(bufferPool[i].getPageData()),
+                         MAX_PAGE_SIZE);
+            dbData.flush();
+            if (dbData.fail()) {
+                cerr << "Error writing page " << pageId << " to disk!" << endl;
+            }
+            pageMetadata[i].isDirty = false;
+        }
+    }
+}
