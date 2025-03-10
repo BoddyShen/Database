@@ -8,8 +8,6 @@ TEST_UNIT_DIR = test_unit
 TEST_END2END_DIR = test_end2end
 OBJ_DIR = build
 
-# Production binary
-BIN = main
 # Get production source files and corresponding object files
 PROD_SOURCES = $(wildcard $(SRC_DIR)/*.cpp)
 PROD_OBJECTS = $(patsubst $(SRC_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(PROD_SOURCES))
@@ -38,16 +36,14 @@ TEST_END2END_BINS = $(patsubst $(TEST_END2END_DIR)/%.cpp, $(OBJ_DIR)/e2e_%, $(TE
 $(OBJ_DIR)/e2e_%: $(TEST_END2END_DIR)/%.cpp $(PROD_OBJECTS_FOR_TEST) | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) $< $(PROD_OBJECTS_FOR_TEST) -o $@
 
-##################################
-# Production binary build section
-##################################
-# Link production object files to create the production binary
-$(BIN): $(PROD_OBJECTS)
-	$(CXX) $(PROD_OBJECTS) -o $(BIN)
-
 # Compile production source files into object files
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+##################################
+# Targets
+##################################
+all: $(TEST_UNIT_BINS) $(TEST_END2END_BINS)
 
 ##################################
 # Build directory
@@ -55,16 +51,6 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
 # Create the build directory if it does not exist
 $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
-
-##################################
-# Targets
-##################################
-# Default target: build the production binary
-all: $(BIN)
-
-# Run target: execute the production binary
-run: all
-	./$(BIN)
 
 # Unit test target: build and run all unit test binaries
 unittest: $(TEST_UNIT_BINS)
@@ -82,6 +68,6 @@ end2endtest: $(TEST_END2END_BINS)
 
 # Clean target: remove all object files and binaries
 clean:
-	rm -rf $(OBJ_DIR) $(BIN)
+	rm -rf $(OBJ_DIR)
 
-.PHONY: all run unittest end2endtest clean
+.PHONY: all unittest end2endtest clean

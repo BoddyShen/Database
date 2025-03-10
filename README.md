@@ -16,14 +16,6 @@ To compile the project, enter each lab folder and run:
 make
 ```
 
-### Run the Project
-
-To run the project, enter each lab folder and run:
-
-```
-make run
-```
-
 ### Test the Project
 
 To do unit test on the project in `test_unit` folder, enter each lab folder and run:
