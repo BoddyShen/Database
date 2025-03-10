@@ -81,9 +81,6 @@ int loading()
     // After loading, unpin the last append page.
     bm.unpinPage(appendPid);
 
-    // Flush all pages to disk.
-    bm.flushAll();
-
     cout << "Loaded " << loadedRows << " rows into the Movies table." << endl;
     return appendPid;
 }
@@ -129,6 +126,7 @@ void querying(int pids)
         // Query random pages to evict the append page.
         for (int i = 0; i < 5; i++) {
             int randPid = rand() % pids;
+            cout << "Querying page " << randPid << "..." << endl;
             (void)bm.getPage(randPid);
             bm.unpinPage(randPid);
         }

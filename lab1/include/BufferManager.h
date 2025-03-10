@@ -59,11 +59,6 @@ class BufferManager
      */
     void printStatus();
 
-    /**
-     * Flushes all dirty pages to disk.
-     */
-    void flushAll();
-
   private:
     int findEmptyFrame();
 
