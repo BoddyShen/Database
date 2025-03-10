@@ -126,6 +126,7 @@ void querying(int pids)
         // Query random pages to evict the append page.
         for (int i = 0; i < 5; i++) {
             int randPid = rand() % pids;
+            cout << "Querying page " << randPid << "..." << endl;
             (void)bm.getPage(randPid);
             bm.unpinPage(randPid);
         }
