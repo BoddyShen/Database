@@ -10,9 +10,8 @@
 #include <unordered_map>
 #include <vector>
 
-BufferManager::BufferManager(int bufferSize, const std::string &dbPath) : bufferSize(bufferSize)
+BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize)
 {
-    nextPageId = 0;
     // initialize buffer pool
     bufferPool.resize(bufferSize);
     // initialize page table with default values (header file)
@@ -22,45 +21,64 @@ BufferManager::BufferManager(int bufferSize, const std::string &dbPath) : buffer
     for (int i = 0; i < bufferSize; i++) {
         lruCache->put(i);
     }
+}
 
-    dbData.open(dbPath, std::ios::in | std::ios::out | std::ios::binary);
-    if (!dbData.is_open()) {
+void BufferManager::registerFile(const std::string filePath)
+{
+    FileHandle *handle = new FileHandle();
+    std::fstream &fs = handle->fs;
+    fs.open(filePath, std::ios::in | std::ios::out | std::ios::binary);
+    if (!fs.is_open()) {
         // create it if not existed
-        dbData.open(dbPath, std::ios::out | std::ios::binary);
-        dbData.close();
-        dbData.open(dbPath, std::ios::in | std::ios::out | std::ios::binary);
+        fs.open(filePath, std::ios::out | std::ios::binary);
+        fs.close();
+        fs.open(filePath, std::ios::in | std::ios::out | std::ios::binary);
     }
 
     // assume pages in disk are always full
-    dbData.seekg(0, std::ios::end);
-    std::streampos fileSize = dbData.tellg();
+    fs.seekg(0, std::ios::end);
+    std::streampos fileSize = fs.tellg();
     std::cout << "File size: " << fileSize << std::endl;
-    nextPageId = fileSize / MAX_PAGE_SIZE;
+    int nextPageId = fileSize / MAX_PAGE_SIZE;
+    handle->nextPageId = nextPageId;
     std::cout << "nextPageId: " << nextPageId << std::endl;
+    fileTable[filePath] = handle;
 }
 
 BufferManager::~BufferManager()
+{
+    force();
+    delete lruCache;
+    for (auto [key, value] : fileTable) {
+        delete value;
+    }
+}
+
+void BufferManager::force()
 {
     // write all dirty pages to disk
     for (int i = 0; i < bufferSize; i++) {
         if (pageMetadata[i].isDirty) {
             int pageId = pageMetadata[i].pageId;
             Page *dirtyPage = &bufferPool[i];
-            dbData.seekp(pageId * MAX_PAGE_SIZE);
-            dbData.write(reinterpret_cast<const char *>(dirtyPage->getPageData()), MAX_PAGE_SIZE);
-            dbData.flush();
-            if (dbData.fail()) {
+            fstream &fs = fileTable[pageMetadata[i].file]->fs;
+            fs.seekp(pageId * MAX_PAGE_SIZE);
+            fs.write(reinterpret_cast<const char *>(dirtyPage->getPageData()), MAX_PAGE_SIZE);
+            fs.flush();
+            if (fs.fail()) {
                 std::cerr << "Error writing page " << pageId << " to disk!" << std::endl;
                 exit(0);
             }
         }
     }
-    dbData.close();
-    delete lruCache;
 }
 
-Page *BufferManager::getPage(int pageId)
+Page *BufferManager::getPage(int pageId, const std::string filePath)
 {
+    // if the file is not registered, return nullptr
+    if (fileTable.find(filePath) == fileTable.end()) return nullptr;
+
+    auto &pageTable = fileTable[filePath]->pageTable;
     // if it's in the buffer pool, return the pointer to it and update the lru
     if (pageTable.find(pageId) != pageTable.end()) {
         int frameIndex = pageTable[pageId];
@@ -80,8 +98,8 @@ Page *BufferManager::getPage(int pageId)
         // the caller
         Page *page = &bufferPool[frameIndex];
         page->setPid(pageId);
-        dbData.seekg(pageId * MAX_PAGE_SIZE);
-        dbData.read(reinterpret_cast<char *>(page->getPageData()), MAX_PAGE_SIZE);
+        fileTable[filePath]->fs.seekg(pageId * MAX_PAGE_SIZE);
+        fileTable[filePath]->fs.read(reinterpret_cast<char *>(page->getPageData()), MAX_PAGE_SIZE);
         int num;
         std::memcpy(&num, page->getPageData(), sizeof(num));
         page->setNumRecords(num);
@@ -96,15 +114,18 @@ Page *BufferManager::getPage(int pageId)
     }
 }
 
-Page *BufferManager::createPage()
+Page *BufferManager::createPage(const std::string filePath)
 {
+    // if the file is not registered, return nullptr
+    if (fileTable.find(filePath) == fileTable.end()) return nullptr;
 
+    auto &pageTable = fileTable[filePath]->pageTable;
     int frameIndex = findEmptyFrame();
     if (frameIndex == -1) {
         std::cerr << "Error: No empty frame found." << std::endl;
         return nullptr;
     }
-    int pageId = nextPageId++;
+    int pageId = fileTable[filePath]->nextPageId++;
 
     // add the new page to the buffer pool
     bufferPool[frameIndex] = Page();
@@ -118,14 +139,19 @@ Page *BufferManager::createPage()
     pageMetadata[frameIndex].pageId = pageId;
     pageMetadata[frameIndex].pinCount = 1;
     pageMetadata[frameIndex].isDirty = true;
+    pageMetadata[frameIndex].file = filePath;
 
     // LRU stuffs
     updateLruQueue(frameIndex);
     return newPage;
 }
 
-void BufferManager::markDirty(int pageId)
+void BufferManager::markDirty(int pageId, const std::string filePath)
 {
+    if (fileTable.find(filePath) == fileTable.end()) {
+        std::cout << "file " << filePath << " not registered!" << std::endl;
+    }
+    auto &pageTable = fileTable[filePath]->pageTable;
     // if it's in the buffer pool
     if (pageTable.find(pageId) != pageTable.end()) {
         pageMetadata[pageTable[pageId]].isDirty = true;
@@ -134,8 +160,12 @@ void BufferManager::markDirty(int pageId)
     }
 }
 
-void BufferManager::unpinPage(int pageId)
+void BufferManager::unpinPage(int pageId, const std::string filePath)
 {
+    if (fileTable.find(filePath) == fileTable.end()) {
+        std::cout << "file " << filePath << " not registered!" << std::endl;
+    }
+    auto &pageTable = fileTable[filePath]->pageTable;
     if (pageTable.find(pageId) != pageTable.end()) {
         if (pageMetadata[pageTable[pageId]].pinCount > 0) {
             pageMetadata[pageTable[pageId]].pinCount--;
@@ -183,11 +213,12 @@ int BufferManager::findLRUFrame()
                 // write to disk
                 cout << "Writing page " << pageId << " to disk..." << endl;
                 Page *evictedPage = &bufferPool[frameId];
-                dbData.seekp(pageId * MAX_PAGE_SIZE);
-                dbData.write(reinterpret_cast<const char *>(evictedPage->getPageData()),
+                fstream &fs = fileTable[pageMetadata[frameId].file]->fs;
+                fs.seekp(pageId * MAX_PAGE_SIZE);
+                fs.write(reinterpret_cast<const char *>(evictedPage->getPageData()),
                              MAX_PAGE_SIZE);
-                dbData.flush();
-                if (dbData.fail()) {
+                fs.flush();
+                if (fs.fail()) {
                     cerr << "Error writing page " << pageId << " to disk!" << endl;
                     exit(0);
                 }
@@ -197,7 +228,7 @@ int BufferManager::findLRUFrame()
             // remove from LRU cache
             lruCache->remove(frameId);
             // remove from page table
-            pageTable.erase(pageId);
+            fileTable[pageMetadata[frameId].file]->pageTable.erase(pageId);
 
             return frameId;
         }
@@ -214,8 +245,11 @@ void BufferManager::printStatus()
 {
     std::cout << "===== Buffer Pool Status =====" << std::endl;
     cout << "Page table content:" << endl;
-    for (auto a : pageTable) {
-        cout << "pageId: " << a.first << " frameId: " << a.second << endl;
+    for (auto &[key, value] : fileTable) {
+        cout << "file " << key << ":" << endl;
+        for (auto a : value->pageTable) {
+            cout << "pageId: " << a.first << " frameId: " << a.second << endl;
+        }
     }
     for (size_t i = 0; i < bufferPool.size(); i++) {
         std::cout << "Frame " << i << ": ";
