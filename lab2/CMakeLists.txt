@@ -17,4 +17,4 @@ include_directories(include)
 file(GLOB_RECURSE SOURCES src/*.cpp)
 
 # Define the executable
-# add_executable(main main.cpp ${SOURCES})
+add_executable(main main.cpp ${SOURCES})

@@ -23,12 +23,14 @@ BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize)
     }
 }
 
-void BufferManager::registerFile(const std::string filePath)
+bool BufferManager::registerFile(const std::string filePath)
 {
     FileHandle *handle = new FileHandle();
     std::fstream &fs = handle->fs;
     fs.open(filePath, std::ios::in | std::ios::out | std::ios::binary);
+    bool is_existed = true;
     if (!fs.is_open()) {
+        is_existed = false;
         // create it if not existed
         fs.open(filePath, std::ios::out | std::ios::binary);
         fs.close();
@@ -43,6 +45,8 @@ void BufferManager::registerFile(const std::string filePath)
     handle->nextPageId = nextPageId;
     std::cout << "nextPageId: " << nextPageId << std::endl;
     fileTable[filePath] = handle;
+    std::cout << "file " << filePath << " registered\n";
+    return is_existed;
 }
 
 BufferManager::~BufferManager()
@@ -58,6 +62,7 @@ void BufferManager::force()
 {
     // write all dirty pages to disk
     for (int i = 0; i < bufferSize; i++) {
+        assert(pageMetadata[i].pinCount == 0);
         if (pageMetadata[i].isDirty) {
             int pageId = pageMetadata[i].pageId;
             Page *dirtyPage = &bufferPool[i];
@@ -76,7 +81,10 @@ void BufferManager::force()
 Page *BufferManager::getPage(int pageId, const std::string filePath)
 {
     // if the file is not registered, return nullptr
-    if (fileTable.find(filePath) == fileTable.end()) return nullptr;
+    if (fileTable.find(filePath) == fileTable.end()) {
+        std::cerr << "Error: No such filePath " << filePath << "." << std::endl;
+        return nullptr;
+    }
 
     auto &pageTable = fileTable[filePath]->pageTable;
     // if it's in the buffer pool, return the pointer to it and update the lru
@@ -91,7 +99,10 @@ Page *BufferManager::getPage(int pageId, const std::string filePath)
         int frameIndex = findEmptyFrame();
 
         // if the buffer pool is full and all pages are pinned, return nullptr
-        if (frameIndex == -1) return nullptr;
+        if (frameIndex == -1) {
+            std::cerr << "all pages are pinned, getPage failed\n";
+            return nullptr;
+        }
 
         // load the requested page from disk
         // we assume the disk file contains the page, the pid check logic should be implemented by
@@ -108,6 +119,7 @@ Page *BufferManager::getPage(int pageId, const std::string filePath)
         pageMetadata[frameIndex].pageId = pageId;
         pageMetadata[frameIndex].isDirty = false;
         pageMetadata[frameIndex].pinCount = 1;
+        pageMetadata[frameIndex].file = filePath;
 
         updateLruQueue(frameIndex);
         return page;
@@ -117,7 +129,10 @@ Page *BufferManager::getPage(int pageId, const std::string filePath)
 Page *BufferManager::createPage(const std::string filePath)
 {
     // if the file is not registered, return nullptr
-    if (fileTable.find(filePath) == fileTable.end()) return nullptr;
+    if (fileTable.find(filePath) == fileTable.end()) {
+        std::cerr << "Error: No such filePath " << filePath << "." << std::endl;
+        return nullptr;
+    }
 
     auto &pageTable = fileTable[filePath]->pageTable;
     int frameIndex = findEmptyFrame();
@@ -184,7 +199,7 @@ int BufferManager::findEmptyFrame()
         if (pageMetadata[i].pageId == -1) return i;
     }
 
-    cout << "No empty frame found, evicting a page..." << endl;
+    // cout << "No empty frame found, evicting a page..." << endl;
     // If no empty frame is found, evict a page
     int frameIndex = findLRUFrame();
     if (frameIndex == -1) {
@@ -202,21 +217,20 @@ int BufferManager::findLRUFrame()
     Node *curr = lruCache->getFirstNode();
     while (curr && curr->next != nullptr) {
         int frameId = curr->val;
-        cout << "Checking frame " << frameId << "..." << endl;
+        // cout << "Checking frame " << frameId << "..." << endl;
 
         if (pageMetadata[frameId].pinCount == 0) {
-            cout << "Evicting frame " << frameId << " (page id:" << pageMetadata[frameId].pageId
-                 << ")..." << endl;
+            // cout << "Evicting frame " << frameId << " (page id:" << pageMetadata[frameId].pageId
+            //      << ")..." << endl;
             int pageId = pageMetadata[frameId].pageId;
 
             if (pageMetadata[frameId].isDirty) {
                 // write to disk
-                cout << "Writing page " << pageId << " to disk..." << endl;
+                // cout << "Writing page " << pageId << " to disk..." << endl;
                 Page *evictedPage = &bufferPool[frameId];
                 fstream &fs = fileTable[pageMetadata[frameId].file]->fs;
                 fs.seekp(pageId * MAX_PAGE_SIZE);
-                fs.write(reinterpret_cast<const char *>(evictedPage->getPageData()),
-                             MAX_PAGE_SIZE);
+                fs.write(reinterpret_cast<const char *>(evictedPage->getPageData()), MAX_PAGE_SIZE);
                 fs.flush();
                 if (fs.fail()) {
                     cerr << "Error writing page " << pageId << " to disk!" << endl;

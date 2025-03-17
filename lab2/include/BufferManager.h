@@ -26,8 +26,9 @@ class BufferManager
      * Register a file in the buffer manager.
      * Open the file if it exists. Otherwise create it.
      * @param filePath The file path.
+     * @return true if the file already exists, otherwise false
      */
-    void registerFile(const std::string filePath);
+    bool registerFile(const std::string filePath);
 
     /**
      * Destructor of the buffer manager.
@@ -106,7 +107,7 @@ class BufferManager
     };
 
     // key: filePath, value: pointer to the fileHandle
-    std::unordered_map<std::string, FileHandle*> fileTable;
+    std::unordered_map<std::string, FileHandle *> fileTable;
 };
 
 #endif // BUFFER_MANAGER_H
