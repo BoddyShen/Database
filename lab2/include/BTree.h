@@ -33,6 +33,13 @@ template <typename K> class BTree
     void insert(K key, Rid r);
 
     /**
+     * Bulk inserts a vector of key-value pairs into the B+ tree.
+     *
+     * @param data A vector of key-value pairs to insert.
+     */
+    void bulkInsert(std::vector<std::pair<K, Rid>> &data);
+
+    /**
      * Searches for a value by key in the B+ tree.
      *
      * @param  key The key to search for.
@@ -191,6 +198,50 @@ template <typename K> void BTree<K>::insertIntoParent(K key, int n1, int n2)
 
         insertIntoParent(k, parents[n1], new_page->getPid());
     }
+}
+
+template <typename K> void BTree<K>::bulkInsert(std::vector<std::pair<K, Rid>> &data)
+{
+    // the tree should be empty when bulk insert
+    if (root != -1) {
+        std::cerr << "The tree should be empty when bulk insert\n";
+        return;
+    }
+
+    Page *page = bm->createPage(filePath);
+    TreeNode<K> leaf(page->getPageData());
+    leaf.setIsLeaf(true);
+    int leaf_id = page->getPid();
+
+    Page *root_page = bm->createPage(filePath);
+    TreeNode<K> root_node(root_page->getPageData());
+    root_node.setIsLeaf(false);
+    root = root_page->getPid();
+    root_node.template insertValue<int>(leaf_id, 0);
+    root_node.setSize(1);
+    parents[leaf_id] = root;
+    bm->unpinPage(root, filePath);
+
+    for (auto &record : data) {
+        // if current leaf is full, create a new leaf
+        if (leaf.getSize() == leaf.template capacity<Rid>()) {
+            Page *new_page = bm->createPage(filePath);
+            TreeNode<K> new_leaf(new_page->getPageData());
+            int new_leaf_id = new_page->getPid();
+            new_leaf.setIsLeaf(true);
+            leaf.setNext(new_leaf_id);
+            new_leaf.template insertKeyValue<Rid>(record.first, record.second, 0);
+            new_leaf.setSize(1);
+            insertIntoParent(record.first, leaf_id, new_leaf_id);
+            bm->unpinPage(leaf_id, filePath);
+            leaf_id = new_leaf_id;
+            leaf = new_leaf;
+        } else {
+            leaf.template insertKeyValue<Rid>(record.first, record.second, leaf.getSize());
+            leaf.setSize(leaf.getSize() + 1);
+        }
+    }
+    bm->unpinPage(leaf_id, filePath);
 }
 
 template <typename K> std::vector<Rid> BTree<K>::search(K key)
