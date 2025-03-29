@@ -20,3 +20,9 @@ To run a simple test on B+ tree, run:
 ```
 ./main
 ```
+
+To run the correctness and performance test, run:
+```
+g++ -o test_all test/test_all.cpp src/BufferManager.cpp src/Page.cpp src/Utilities.cpp src/LRUCache.cpp -I include/ 
+./test_all
+```
