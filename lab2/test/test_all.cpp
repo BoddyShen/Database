@@ -1,5 +1,7 @@
 #include "../include/BTree.h"
 #include "../include/BufferManager.h"
+#include "../include/Constants.h"
+#include "../include/DatabaseCatalog.h"
 #include "../include/Page.h"
 #include "../include/Row.h"
 #include "../include/Utilities.h"
@@ -7,212 +9,358 @@
 #include <cassert>
 #include <chrono>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <sstream>
 #include <vector>
 
 using namespace std;
 
-// Helper function to scan Movies table and get records
-vector<pair<string, Rid>> scanMoviesTable(BufferManager& bm) {
-    vector<pair<string, Rid>> records;
-    if (!bm.registerFile("movies.bin")) {
-        cout << "Warning: movies.bin not found. Please run lab1 first to create the Movies table.\n";
-        return records;
+// Load movie data (title.basics.tsv) into the database (MOVIE_DB_FILE)
+int loadMovieData()
+{
+    // Remove existing database file to start with a clean slate.
+    remove(MOVIE_DB_FILE.c_str());
+    BufferManager bm(FRAME_SIZE);
+    bm.registerFile(MOVIE_DB_FILE);
+
+    // Open the TSV file
+    ifstream tsvFile("../title.basics.tsv");
+    if (!tsvFile.is_open()) {
+        cerr << "Failed to open title.basics.tsv" << endl;
+        return 0;
     }
-    
+
+    string header;
+    getline(tsvFile, header);
+    cout << "Header: " << header << endl;
+
+    // Create the first append page; all data will be inserted into this page.
+    Page *appendPage = bm.createPage(MOVIE_DB_FILE);
+    int appendPid = appendPage->getPid();
+    cout << "Initial append page id: " << appendPid << endl;
+
+    // Read the TSV file line by line.
+    string line;
+    int loadedRows = 0;
+    while (getline(tsvFile, line)) {
+        loadedRows++;
+        // Parse the line using tab as a delimiter.
+        istringstream iss(line);
+        vector<string> tokens;
+        string token;
+        while (getline(iss, token, '\t')) {
+            tokens.push_back(token);
+        }
+
+        if (tokens.size() < 3) continue;
+        string movieId = tokens[0];
+        string title = tokens[2];
+
+        // Truncate data to fixed length: movieId to 9 characters, title to 30 characters.
+        if (movieId.size() > 9) movieId = movieId.substr(0, 9);
+        if (title.size() > 30) title = title.substr(0, 30);
+
+        // Create a Row object, assuming Row has a constructor accepting C-string.
+        Row row(movieId.c_str(), title.c_str());
+
+        // If the current page is full, unpin it and create a new page.
+        if (appendPage->isFull()) {
+            bm.unpinPage(appendPid, MOVIE_DB_FILE);
+            appendPage = bm.createPage(MOVIE_DB_FILE);
+            appendPid = appendPage->getPid();
+            cout << "Loaded " << loadedRows << " rows" << endl;
+            cout << "Created new append page, id: " << appendPid << endl;
+        }
+
+        // Insert the row into the current append page.
+        int rowId = appendPage->insertRow(row);
+        if (rowId == -1) {
+            cerr << "Failed to insert row into page " << appendPid << endl;
+        }
+    }
+
+    tsvFile.close();
+
+    // After loading, unpin the last append page.
+    bm.unpinPage(appendPid, MOVIE_DB_FILE);
+
+    cout << "Loaded " << loadedRows << " rows into the Movies table." << endl;
+    return appendPid;
+}
+
+// A generic helper to scan the Movies table.
+// FixedStringType is either FixedTitleSizeString or FixedMovieIdString, since the BTrees accept
+// only fixed-size keys.
+template <typename FixedStringType>
+vector<pair<FixedStringType, Rid>> scanMovies(BufferManager &bm, const std::string &movieFile,
+                                              std::function<string(const Row &)> keyExtractor)
+{
+    // Check if the movies file exists; if not, load movie data.
+    ifstream f(movieFile, ios::binary);
+    if (!f.good()) {
+        cout << movieFile << " not found. Loading movie data...\n";
+        loadMovieData();
+    }
+    // Get the actual file size.
+    f.seekg(0, ios::end);
+    std::streampos fileSize = f.tellg();
+    f.close();
+
+    vector<pair<FixedStringType, Rid>> records;
+    bm.registerFile(movieFile);
+
     int pageId = 0;
-    while (true) {
-        Page* page = bm.getPage(pageId, "movies.bin");
+    while (pageId * MAX_PAGE_SIZE < fileSize) {
+        Page *page = bm.getPage(pageId, movieFile);
         if (!page) break;
-        
         for (int slotId = 0; slotId < page->getNumRecords(); slotId++) {
-            Row* row = page->getRow(slotId);
+            Row *row = page->getRow(slotId);
             if (row) {
                 try {
-                    string title(reinterpret_cast<const char*>(row->title.data()), row->title.size());
-                    records.push_back({title, {pageId, slotId}});
-                } catch (const exception& e) {
+                    // Use the provided keyExtractor to get the key.
+                    string key = keyExtractor(*row);
+                    records.push_back({FixedStringType(key), {pageId, slotId}});
+                } catch (const exception &e) {
                     cerr << "Error processing row: " << e.what() << endl;
                 }
                 delete row;
             }
         }
-        bm.unpinPage(pageId, "movies.bin");
+        bm.unpinPage(pageId, movieFile);
+        if (pageId % 10000 == 0) cout << "Scanned page " << pageId << endl;
         pageId++;
     }
+    cout << "Scanned " << pageId << " pages from the Movies table\n";
+    cout << "Scanned " << records.size() << " records from the Movies table\n";
     return records;
 }
 
 // Test C1: Create index on title attribute
-void test_C1_title_index() {
+void test_C1_title_index(DatabaseCatalog &catalog)
+{
     cout << "\n=== Test C1: Creating index on title attribute ===\n";
-    BufferManager bm(20);
-    BTree<string> titleIndex("title_index.bin", &bm);
 
-    // Scan Movies table and build index
-    auto records = scanMoviesTable(bm);
-    int count = 0;
-    for (const auto &record : records) {
-        titleIndex.insert(record.first, record.second);
-        count++;
-        if (count % 1000 == 0) {
-            cout << "Inserted " << count << " records into title index\n";
+    string indexName = "title_index.bin";
+    ifstream f(indexName, ios::binary);
+    bool indexExists = f.good();
+    f.close();
+
+    if (indexExists) {
+        cout << "Title index already exists. Skipping creation.\n";
+    } else {
+        BufferManager bm(20);
+        BTree<FixedTitleSizeString> titleIndex(indexName, &bm);
+
+        // Scan Movies table and build index using a lambda to extract the title.
+        vector<pair<FixedTitleSizeString, Rid>> titleRecords =
+            scanMovies<FixedTitleSizeString>(bm, MOVIE_DB_FILE, [](const Row &row) -> string {
+                return string(reinterpret_cast<const char *>(row.title.data()), row.title.size());
+            });
+
+        int count = 0;
+        for (const auto &record : titleRecords) {
+            titleIndex.insert(record.first, record.second);
+            count++;
+            if (count % 100000 == 0) {
+                cout << "Inserted " << count << " records into title index\n";
+                cout << "Last record: " << record.first.toString() << "\n";
+                cout << "Last record RID: " << record.second.first << ", " << record.second.second
+                     << "\n";
+            }
         }
+        cout << "Title index created successfully with " << count << " records\n";
     }
-    cout << "Title index created successfully with " << count << " records\n";
+
+    // Add the index information into the catalog once, regardless of index file existence.
+    DatabaseCatalog::IndexInfo titleIndexInfo;
+    titleIndexInfo.indexName = indexName;
+    titleIndexInfo.tableName = "Movie";  // Name of the Movies table
+    titleIndexInfo.filePath = indexName; // File path for the index
+    titleIndexInfo.keyName = "title";    // The search attribute
+    catalog.addIndex(titleIndexInfo);
+    cout << "Added title index information to the catalog\n";
 }
 
 // Test C2: Create index on movieId attribute (with bulk insert)
-void test_C2_movieId_index()
+void test_C2_movieId_index(DatabaseCatalog &catalog)
 {
     cout << "\n=== Test C2: Creating index on movieId attribute ===\n";
-    BufferManager bm(20);
-    BTree<int> movieIdIndex("movieId_index.bin", &bm);
 
-    if (!bm.registerFile("movies.bin")) {
-        cout
-            << "Warning: movies.bin not found. Please run lab1 first to create the Movies table.\n";
-        return;
+    string indexName = "movieId_index.bin";
+    ifstream f(indexName, ios::binary);
+    bool indexExists = f.good();
+    f.close();
+
+    if (indexExists) {
+        cout << "MovieId index already exists. Skipping creation.\n";
+    } else {
+        BufferManager bm(20);
+        BTree<FixedMovieIdString> movieIdIndex(indexName, &bm);
+
+        // Scan Movies table and build index
+        vector<pair<FixedMovieIdString, Rid>> movieIdRecords =
+            scanMovies<FixedMovieIdString>(bm, MOVIE_DB_FILE, [](const Row &row) -> string {
+                return string(reinterpret_cast<const char *>(row.movieId.data()),
+                              row.movieId.size());
+            });
+
+        // Bulk insert
+        cout << "Bulk inserting movieId index...\n";
+        auto start = chrono::high_resolution_clock::now();
+        movieIdIndex.bulkInsert(movieIdRecords);
+        auto end = chrono::high_resolution_clock::now();
+        cout << "MovieId index created successfully with " << movieIdRecords.size() << " records\n";
+        cout << "Bulk insert time: "
+             << chrono::duration_cast<chrono::milliseconds>(end - start).count() << "ms\n";
     }
 
-    vector<pair<int, Rid>> records;
-    int pageId = 0;
+    // Add the index information into the catalog.
+    DatabaseCatalog::IndexInfo titleIndexInfo;
+    titleIndexInfo.indexName = indexName;
+    titleIndexInfo.tableName = "Movie";
+    titleIndexInfo.filePath = indexName;
+    titleIndexInfo.keyName = "movieId";
+    catalog.addIndex(titleIndexInfo);
 
-    while (true) {
-        Page *page = bm.getPage(pageId, "movies.bin");
-        if (!page) break;
-
-        for (int slotId = 0; slotId < page->getNumRecords(); slotId++) {
-            Row *row = page->getRow(slotId);
-            if (row) {
-                try {
-                    string movieIdStr(reinterpret_cast<const char *>(row->movieId.data()),
-                                      row->movieId.size());
-                    // Remove any non-numeric characters
-                    movieIdStr.erase(remove_if(movieIdStr.begin(), movieIdStr.end(),
-                                               [](char c) { return !isdigit(c); }),
-                                     movieIdStr.end());
-                    if (!movieIdStr.empty()) {
-                        int movieId = stoi(movieIdStr);
-                        records.push_back({movieId, {pageId, slotId}});
-                    }
-                } catch (const exception &e) {
-                    cerr << "Error processing movieId: " << e.what() << endl;
-                }
-                delete row;
-            }
-        }
-        bm.unpinPage(pageId, "movies.bin");
-        pageId++;
-    }
-
-    if (records.empty()) {
-        cout << "No valid records found in the Movies table.\n";
-        return;
-    }
-
-    // Sort by movieId for bulk insert
-    sort(records.begin(), records.end());
-
-    // Bulk insert
-    auto start = chrono::high_resolution_clock::now();
-    movieIdIndex.bulkInsert(records);
-    auto end = chrono::high_resolution_clock::now();
-    cout << "MovieId index created successfully with " << records.size() << " records\n";
-    cout << "Bulk insert time: " << chrono::duration_cast<chrono::milliseconds>(end - start).count()
-         << "ms\n";
+    cout << "Added movieId index information to the catalog\n";
 }
 
 // Test C3: Point search test
-void test_C3_point_search()
+void test_C3_point_search(DatabaseCatalog &catalog)
 {
     cout << "\n=== Test C3: Point search test ===\n";
     BufferManager bm(20);
 
+    auto movieTableInfo = catalog.getTable("Movie");
+    bm.registerFile(movieTableInfo.filePath);
+
     // Test title index
     cout << "Testing title index point search...\n";
-    BTree<string> titleIndex("title_index.bin", &bm);
-    string searchTitle = "The Godfather";
-    auto titleResults = titleIndex.search(searchTitle);
+    vector<string> testTitles = {"Carmencita", "Boat Leaving the Port", "Light Sleeper",
+                                 "Danse serpentine", "Place de la Bastille"};
 
-    cout << "Found " << titleResults.size() << " results for title '" << searchTitle << "'\n";
-    for (const auto &rid : titleResults) {
-        Page *page = bm.getPage(rid.first, "movies.bin");
-        Row *row = page->getRow(rid.second);
-        string foundTitle(reinterpret_cast<const char *>(row->title.data()), row->title.size());
-        cout << "Found movie: " << foundTitle << "\n";
-        assert(foundTitle == searchTitle);
-        delete row;
-        bm.unpinPage(rid.first, "movies.bin");
+    auto titleIndexInfo = catalog.getIndex("title_index.bin");
+    BTree<FixedTitleSizeString> titleIndex("title_index.bin", &bm);
+
+    for (const string &searchTitle : testTitles) {
+        FixedTitleSizeString searchTitleStr(searchTitle);
+
+        cout << "Searching for movie with title: " << searchTitle << endl;
+        auto titleResults = titleIndex.search(searchTitleStr);
+        cout << "Found " << titleResults.size() << " results for title '" << searchTitle << "'\n";
+        for (const auto &rid : titleResults) {
+            int pageId = rid.first;
+            int slotId = rid.second;
+
+            Page *page = bm.getPage(pageId, movieTableInfo.filePath);
+            if (!page) continue;
+            Row *row = page->getRow(slotId);
+            if (!row) continue;
+
+            string foundTitle(reinterpret_cast<const char *>(row->title.data()), row->title.size());
+            cout << "Found movie: " << foundTitle << "\n";
+            FixedTitleSizeString foundTitleStr(foundTitle);
+            assert(foundTitleStr == searchTitleStr);
+            delete row;
+            bm.unpinPage(pageId, movieTableInfo.filePath);
+        }
     }
 
     // Test movieId index
-    cout << "\nTesting movieId index point search...\n";
-    BTree<int> movieIdIndex("movieId_index.bin", &bm);
-    int searchId = 100;
-    auto idResults = movieIdIndex.search(searchId);
+    cout << "Testing movieId index point search...\n";
 
-    cout << "Found " << idResults.size() << " results for movieId " << searchId << "\n";
-    for (const auto &rid : idResults) {
-        Page *page = bm.getPage(rid.first, "movies.bin");
-        Row *row = page->getRow(rid.second);
-        string movieIdStr(reinterpret_cast<const char *>(row->movieId.data()), row->movieId.size());
-        int foundId = stoi(movieIdStr);
-        cout << "Found movie: "
-             << string(reinterpret_cast<const char *>(row->title.data()), row->title.size())
-             << " (ID: " << foundId << ")\n";
-        assert(foundId == searchId);
-        delete row;
-        bm.unpinPage(rid.first, "movies.bin");
+    unordered_map<string, string> testMovieId = {
+        {"tt0000001", "Carmencita"},
+        {"tt0000002", "Le clown et ses chiens"},
+        {"tt0000003", "Poor Pierrot"},
+        {"tt0000004", "Un bon bock"},
+        {"tt0000005", "Blacksmith Scene"},
+        {"tt0000006", "Chinese Opium Den"},
+        {"tt0000007", "Corbett and Courtney Before the Kinetograph"},
+        {"tt0000008", "Edison Kinetoscopic Record of a Sneeze"},
+        {"tt0000009", "Miss Jerry"},
+        {"tt0000010", "Leaving the Factory"}};
+
+    BTree<FixedMovieIdString> movieIdIndex("movieId_index.bin", &bm);
+    for (const auto &entry : testMovieId) {
+        string searchId = entry.first;
+        string searchTitle = entry.second;
+
+        FixedMovieIdString searchIdStr(searchId);
+        auto idResults = movieIdIndex.search(searchIdStr);
+
+        cout << "Found " << idResults.size() << " results for movieId " << searchId << "\n";
+        for (const auto &rid : idResults) {
+            int pageId = rid.first;
+            int slotId = rid.second;
+            cout << "Found movie at page " << pageId << ", slot " << slotId << "\n";
+            Page *page = bm.getPage(pageId, movieTableInfo.filePath);
+            Row *row = page->getRow(slotId);
+            string foundId(reinterpret_cast<const char *>(row->movieId.data()),
+                           row->movieId.size());
+            string foundTitle(reinterpret_cast<const char *>(row->title.data()), row->title.size());
+            assert(foundId == searchId);
+            FixedTitleSizeString foundTitleStr(foundTitle);
+            FixedTitleSizeString searchTitleStr(searchTitle);
+            assert(foundTitleStr == searchTitleStr);
+            delete row;
+            bm.unpinPage(pageId, movieTableInfo.filePath);
+        }
     }
 }
 
 // Test C4: Range search test
-void test_C4_range_search()
+void test_C4_range_search(DatabaseCatalog &catalog)
 {
     cout << "\n=== Test C4: Range search test ===\n";
     BufferManager bm(20);
+    auto movieTableInfo = catalog.getTable("Movie");
+    bm.registerFile(movieTableInfo.filePath);
 
     // Test title index range search
     cout << "Testing title index range search...\n";
-    BTree<string> titleIndex("title_index.bin", &bm);
+    BTree<FixedTitleSizeString> titleIndex("title_index.bin", &bm);
     string startTitle = "The";
     string endTitle = "Thf";
-    auto titleResults = titleIndex.rangeSearch(startTitle, endTitle);
+    FixedTitleSizeString startTitleStr(startTitle);
+    FixedTitleSizeString endTitleStr(endTitle);
+    auto titleResults = titleIndex.rangeSearch(startTitleStr, endTitleStr);
 
     cout << "Found " << titleResults.size() << " results in title range [" << startTitle << ", "
          << endTitle << "]\n";
     for (const auto &rid : titleResults) {
-        Page *page = bm.getPage(rid.first, "movies.bin");
+        Page *page = bm.getPage(rid.first, "movie.bin");
         Row *row = page->getRow(rid.second);
         string foundTitle(reinterpret_cast<const char *>(row->title.data()), row->title.size());
         cout << "Found movie: " << foundTitle << "\n";
         assert(foundTitle >= startTitle && foundTitle <= endTitle);
         delete row;
-        bm.unpinPage(rid.first, "movies.bin");
+        bm.unpinPage(rid.first, "movie.bin");
     }
 
     // Test movieId index range search
     cout << "\nTesting movieId index range search...\n";
-    BTree<int> movieIdIndex("movieId_index.bin", &bm);
-    int startId = 100;
-    int endId = 200;
-    auto idResults = movieIdIndex.rangeSearch(startId, endId);
+    BTree<FixedMovieIdString> movieIdIndex("movieId_index.bin", &bm);
+    string startId = "tt0000010";
+    string endId = "tt0001000";
+    FixedMovieIdString startIdStr(startId);
+    FixedMovieIdString endIdStr(endId);
+    auto idResults = movieIdIndex.rangeSearch(startIdStr, endIdStr);
 
+    // Note there are gaps in the movieId sequence, so the number of results may not match the
+    // range.
     cout << "Found " << idResults.size() << " results in movieId range [" << startId << ", "
          << endId << "]\n";
     for (const auto &rid : idResults) {
-        Page *page = bm.getPage(rid.first, "movies.bin");
+        Page *page = bm.getPage(rid.first, "movie.bin");
         Row *row = page->getRow(rid.second);
-        string movieIdStr(reinterpret_cast<const char *>(row->movieId.data()), row->movieId.size());
-        int foundId = stoi(movieIdStr);
-        cout << "Found movie: "
-             << string(reinterpret_cast<const char *>(row->title.data()), row->title.size())
-             << " (ID: " << foundId << ")\n";
-        assert(foundId >= startId && foundId <= endId);
+        string movieId(reinterpret_cast<const char *>(row->movieId.data()), row->movieId.size());
+        FixedMovieIdString foundIdStr(movieId);
+
+        assert(foundIdStr >= startIdStr && foundIdStr <= endIdStr);
         delete row;
-        bm.unpinPage(rid.first, "movies.bin");
+        bm.unpinPage(rid.first, "movie.bin");
     }
 }
 
@@ -340,9 +488,9 @@ int main()
 
         // Correctness Tests
         test_C1_title_index(catalog);
-        // test_C2_movieId_index();
-        // test_C3_point_search();
-        // test_C4_range_search();
+        test_C2_movieId_index(catalog);
+        test_C3_point_search(catalog);
+        test_C4_range_search(catalog);
 
         // // Performance Tests
         // test_P1_performance();
