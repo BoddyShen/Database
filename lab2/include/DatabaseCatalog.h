@@ -1,7 +1,6 @@
 #ifndef DATABASECATALOG_H
 #define DATABASECATALOG_H
 
-#include "BTreeBase.h"
 #include <string>
 #include <unordered_map>
 
@@ -20,9 +19,6 @@ class DatabaseCatalog
         std::string tableName; // The table the index is built on
         std::string filePath;
         std::string keyName; // The search attribute name
-        BTreeBase *instance; // The B+ tree instance
-
-        IndexInfo() : instance(nullptr) {}
     };
 
     // Adds a table entry to the catalog.
