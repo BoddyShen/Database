@@ -3,6 +3,7 @@
 - A C++ compiler (e.g., g++)
 - GNU CMake
 - Add `title.basics.tsv` in lab2 folder (Ref: https://datasets.imdbws.com/)
+- python, panda, matplotlib
 
 ## How to Build and Run
 
@@ -32,4 +33,10 @@ To run the correctness and performance test, run:
 
 ```
 ./test_end2end
+```
+
+To plot a graph of the result from test_end2end, run:
+
+```
+python3 plot_results.py
 ```

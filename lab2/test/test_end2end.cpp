@@ -128,7 +128,7 @@ vector<pair<FixedStringType, Rid>> scanMovies(BufferManager &bm, const std::stri
             }
         }
         bm.unpinPage(pageId, movieFile);
-        if (pageId % 10000 == 0) cout << "Scanned page " << pageId << endl;
+        // if (pageId % 10000 == 0) cout << "Scanned page " << pageId << endl;
         pageId++;
     }
     cout << "Scanned " << pageId << " pages from the Movies table\n";
@@ -137,6 +137,7 @@ vector<pair<FixedStringType, Rid>> scanMovies(BufferManager &bm, const std::stri
 }
 
 // Test C1: Create index on title attribute
+// This test costs nearly half an hour to create the index...
 void test_C1_title_index(DatabaseCatalog &catalog)
 {
     cout << "\n=== Test C1: Creating index on title attribute ===\n";
@@ -158,18 +159,16 @@ void test_C1_title_index(DatabaseCatalog &catalog)
                 return string(reinterpret_cast<const char *>(row.title.data()), row.title.size());
             });
 
-        int count = 0;
         for (const auto &record : titleRecords) {
             titleIndex.insert(record.first, record.second);
-            count++;
-            if (count % 100000 == 0) {
-                cout << "Inserted " << count << " records into title index\n";
+            if (titleRecords.size() % 100000 == 0) {
+                cout << "Inserted " << titleRecords.size() << " records into title index\n";
                 cout << "Last record: " << record.first.toString() << "\n";
                 cout << "Last record RID: " << record.second.first << ", " << record.second.second
                      << "\n";
             }
         }
-        cout << "Title index created successfully with " << count << " records\n";
+        cout << "Title index created successfully with " << titleRecords.size() << " records\n";
     }
 
     // Add the index information into the catalog once, regardless of index file existence.
@@ -241,7 +240,7 @@ void test_C3_point_search(DatabaseCatalog &catalog)
                                  "Danse serpentine", "Place de la Bastille"};
 
     auto titleIndexInfo = catalog.getIndex("title_index.bin");
-    BTree<FixedTitleSizeString> titleIndex("title_index.bin", &bm);
+    BTree<FixedTitleSizeString> titleIndex(titleIndexInfo.filePath, &bm);
 
     for (const string &searchTitle : testTitles) {
         FixedTitleSizeString searchTitleStr(searchTitle);
@@ -318,9 +317,12 @@ void test_C4_range_search(DatabaseCatalog &catalog)
     auto movieTableInfo = catalog.getTable("Movie");
     bm.registerFile(movieTableInfo.filePath);
 
+    string titleIndexFilePath = catalog.getIndex("title_index.bin").filePath;
+    string movieIdIndexFilePath = catalog.getIndex("movieId_index.bin").filePath;
+
     // Test title index range search
     cout << "Testing title index range search...\n";
-    BTree<FixedTitleSizeString> titleIndex("title_index.bin", &bm);
+    BTree<FixedTitleSizeString> titleIndex(titleIndexFilePath, &bm);
     string startTitle = "The";
     string endTitle = "Thf";
     FixedTitleSizeString startTitleStr(startTitle);
@@ -330,18 +332,19 @@ void test_C4_range_search(DatabaseCatalog &catalog)
     cout << "Found " << titleResults.size() << " results in title range [" << startTitle << ", "
          << endTitle << "]\n";
     for (const auto &rid : titleResults) {
-        Page *page = bm.getPage(rid.first, "movie.bin");
+        Page *page = bm.getPage(rid.first, movieTableInfo.filePath);
         Row *row = page->getRow(rid.second);
         string foundTitle(reinterpret_cast<const char *>(row->title.data()), row->title.size());
-        cout << "Found movie: " << foundTitle << "\n";
-        assert(foundTitle >= startTitle && foundTitle <= endTitle);
+        // cout << "Found movie: " << foundTitle << "\n";
+        FixedTitleSizeString foundTitleStr(foundTitle);
+        assert(foundTitleStr >= startTitleStr && foundTitleStr <= endTitleStr);
         delete row;
-        bm.unpinPage(rid.first, "movie.bin");
+        bm.unpinPage(rid.first, movieTableInfo.filePath);
     }
 
     // Test movieId index range search
     cout << "\nTesting movieId index range search...\n";
-    BTree<FixedMovieIdString> movieIdIndex("movieId_index.bin", &bm);
+    BTree<FixedMovieIdString> movieIdIndex(movieIdIndexFilePath, &bm);
     string startId = "tt0000010";
     string endId = "tt0001000";
     FixedMovieIdString startIdStr(startId);
@@ -353,121 +356,313 @@ void test_C4_range_search(DatabaseCatalog &catalog)
     cout << "Found " << idResults.size() << " results in movieId range [" << startId << ", "
          << endId << "]\n";
     for (const auto &rid : idResults) {
-        Page *page = bm.getPage(rid.first, "movie.bin");
+        Page *page = bm.getPage(rid.first, movieTableInfo.filePath);
         Row *row = page->getRow(rid.second);
         string movieId(reinterpret_cast<const char *>(row->movieId.data()), row->movieId.size());
         FixedMovieIdString foundIdStr(movieId);
 
         assert(foundIdStr >= startIdStr && foundIdStr <= endIdStr);
         delete row;
-        bm.unpinPage(rid.first, "movie.bin");
+        bm.unpinPage(rid.first, movieTableInfo.filePath);
     }
 }
 
-// Test P1: Performance comparison with title index
-void test_P1_performance()
+// Test P1: Perform a range query using two methods: (1) a direct scan of the Movies table, and
+// (2) get Rids from the title index, then access the rows from the Movies table and return
+// them.
+
+// The results are printed to the console and saved to a CSV file for plotting.
+void exportResultsToCSV(const vector<double> &selectivities, const vector<double> &directTimes,
+                        const vector<double> &indexTimes, const vector<double> &ratios,
+                        const string &filename)
+{
+    ofstream out(filename);
+    out << "Selectivity,DirectTime,IndexTime,Ratio\n";
+    for (size_t i = 0; i < selectivities.size(); i++) {
+        out << selectivities[i] << "," << directTimes[i] << "," << indexTimes[i] << "," << ratios[i]
+            << "\n";
+    }
+    out.close();
+}
+
+// Helper function for method 1: direct scan of Movies table.
+tuple<double, int, int> directScanRangeQuery(BufferManager &bm, const string &movieFile,
+                                             const string &startTitle, const string &endTitle)
+{
+    auto startTime = std::chrono::high_resolution_clock::now();
+    int pageId = 0;
+    int matchingRows = 0;
+    int totalRows = 0;
+
+    ifstream f(movieFile, ios::binary);
+    f.seekg(0, ios::end);
+    std::streampos fileSize = f.tellg();
+    f.close();
+
+    FixedTitleSizeString startTitleStr(startTitle);
+    FixedTitleSizeString endTitleStr(endTitle);
+
+    while (pageId * MAX_PAGE_SIZE < fileSize) {
+        Page *page = bm.getPage(pageId, movieFile);
+        if (!page) break;
+        for (int slotId = 0; slotId < page->getNumRecords(); slotId++) {
+            Row *row = page->getRow(slotId);
+            if (row) {
+                totalRows++;
+                string title(reinterpret_cast<const char *>(row->title.data()), row->title.size());
+                FixedTitleSizeString titleStr(title);
+                if (titleStr >= startTitleStr && titleStr <= endTitleStr) {
+                    matchingRows++;
+                }
+                // if (title >= startTitle && title <= endTitle) {
+                //     matchingRows++;
+                // }
+                delete row;
+            }
+        }
+        bm.unpinPage(pageId, movieFile);
+        pageId++;
+    }
+    auto endTime = std::chrono::high_resolution_clock::now();
+    double durationMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+    cout << "[Direct Scan] Range [" << startTitle << ", " << endTitle << "] "
+         << "matched " << matchingRows << " rows in " << durationMs << " ms.\n";
+    return {durationMs, matchingRows, totalRows};
+}
+
+// Helper function for method 2: use the title index.
+pair<double, int> indexBasedRangeQuery(BufferManager &bm, const string &movieFile,
+                                       const string &startTitle, const string &endTitle,
+                                       const string &indexFilePath)
+{
+    auto startTime = std::chrono::high_resolution_clock::now();
+
+    BTree<FixedTitleSizeString> titleIndex(indexFilePath, &bm);
+    FixedTitleSizeString startTitleStr(startTitle);
+    FixedTitleSizeString endTitleStr(endTitle);
+    vector<Rid> rids = titleIndex.rangeSearch(startTitleStr, endTitleStr);
+    cout << "Found " << rids.size() << " results in title range [" << startTitle << ", " << endTitle
+         << "]\n";
+
+    int matchingRows = 0;
+    for (const auto &rid : rids) {
+        int pageId = rid.first;
+        int slotId = rid.second;
+        Page *page = bm.getPage(pageId, movieFile);
+        if (!page) continue;
+        Row *row = page->getRow(slotId);
+        if (row) {
+            string title(reinterpret_cast<const char *>(row->title.data()), row->title.size());
+            FixedTitleSizeString titleStr(title);
+            if (titleStr >= startTitleStr && titleStr <= endTitleStr) {
+                matchingRows++;
+            }
+            delete row;
+        }
+        bm.unpinPage(pageId, movieFile);
+    }
+    auto endTime = std::chrono::high_resolution_clock::now();
+    double durationMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+    cout << "[Index Based] Range [" << startTitle << ", " << endTitle << "] "
+         << "matched " << matchingRows << " rows in " << durationMs << " ms.\n";
+    return {durationMs, matchingRows};
+}
+
+void test_P1(DatabaseCatalog &catalog)
 {
     cout << "\n=== Test P1: Title index performance test ===\n";
     BufferManager bm(20);
-    BTree<string> titleIndex("title_index.bin", &bm);
+    auto movieTableInfo = catalog.getTable("Movie");
+    bm.registerFile(movieTableInfo.filePath);
+    string indexFilePath = catalog.getIndex("title_index.bin").filePath;
 
-    string searchTitle = "The Godfather";
+    // Test title range search with increasing ranges
+    // TODO: Handle different matched row counts
+    vector<pair<string, string>> ranges = {
+        {"A", "B"}, {"A", "C"}, {"A", "G"}, {"A", "M"}, {"A", "Z"}};
 
-    // Measure index search time
-    auto indexStart = chrono::high_resolution_clock::now();
-    auto indexResults = titleIndex.search(searchTitle);
-    auto indexEnd = chrono::high_resolution_clock::now();
-    auto indexTime = chrono::duration_cast<chrono::microseconds>(indexEnd - indexStart).count();
+    // Vectors to store results for plotting.
+    vector<double> selectivities; // fraction of rows
+    vector<double> timeDirect;
+    vector<double> timeIndex;
+    vector<double> timeRatio; // direct / index
+    int totalRows = 0;
 
-    cout << "Index search time: " << indexTime << "µs\n";
-    cout << "Found " << indexResults.size() << " results using index\n";
-
-    // Measure table scan time
-    auto scanStart = chrono::high_resolution_clock::now();
-    vector<Rid> scanResults;
-    int pageId = 0;
-    int maxPages = 1000; // Limit scan to prevent infinite loop
-
-    while (pageId < maxPages) {
-        Page *page = bm.getPage(pageId, "movies.bin");
-        if (!page) break;
-
-        for (int slotId = 0; slotId < page->getNumRecords(); slotId++) {
-            Row *row = page->getRow(slotId);
-            if (row) {
-                string title(reinterpret_cast<const char *>(row->title.data()), row->title.size());
-                if (title == searchTitle) {
-                    scanResults.push_back({pageId, slotId});
-                }
-                delete row;
-            }
-        }
-        bm.unpinPage(pageId, "movies.bin");
-        pageId++;
+    for (auto &range : ranges) {
+        // Run the two query methods.
+        // return <time, matchedRow. totalRows>
+        tuple<double, int, int> data1 =
+            directScanRangeQuery(bm, movieTableInfo.filePath, range.first, range.second);
+        pair<double, int> data2 = indexBasedRangeQuery(bm, movieTableInfo.filePath, range.first,
+                                                       range.second, indexFilePath);
+        double t1 = std::get<0>(data1);
+        double t2 = data2.first;
+        double ratio = (t2 != 0) ? (t1 / t2) : 0;
+        int matchedRow = std::get<1>(data1);
+        totalRows = std::get<2>(data1);
+        // Save the measurements.
+        selectivities.push_back(matchedRow / static_cast<double>(totalRows));
+        timeDirect.push_back(t1);
+        timeIndex.push_back(t2);
+        timeRatio.push_back(ratio);
     }
 
-    auto scanEnd = chrono::high_resolution_clock::now();
-    auto scanTime = chrono::duration_cast<chrono::microseconds>(scanEnd - scanStart).count();
+    // Output the collected data (you can then use Python/matplotlib or Excel to plot)
+    cout << "Selectivity, DirectTime(ms), IndexTime(ms), Ratio\n";
+    for (size_t i = 0; i < selectivities.size(); i++) {
+        cout << selectivities[i] << ", " << timeDirect[i] << ", " << timeIndex[i] << ", "
+             << timeRatio[i] << "\n";
+    }
 
-    cout << "Table scan time: " << scanTime << "µs\n";
-    cout << "Found " << scanResults.size() << " results using table scan\n";
-    cout << "Speed-up: " << (double)scanTime / indexTime << "x\n";
+    // Export to CSV for plotting
+    exportResultsToCSV(selectivities, timeDirect, timeIndex, timeRatio, "test_P1_result.csv");
 }
 
 // Test P2: Performance comparison with movieId index
-void test_P2_performance()
+// Helper function for method 1: Direct scan of the Movies table based on movieId.
+tuple<double, int, int> directScanRangeQuery_movieId(BufferManager &bm, const string &movieFile,
+                                                     const FixedMovieIdString &startId,
+                                                     const FixedMovieIdString &endId)
 {
-    cout << "\n=== Test P2: MovieId index performance test ===\n";
-    BufferManager bm(20);
-    BTree<int> movieIdIndex("movieId_index.bin", &bm);
-
-    int searchId = 100;
-
-    // Measure index search time
-    auto indexStart = chrono::high_resolution_clock::now();
-    auto indexResults = movieIdIndex.search(searchId);
-    auto indexEnd = chrono::high_resolution_clock::now();
-    auto indexTime = chrono::duration_cast<chrono::microseconds>(indexEnd - indexStart).count();
-
-    cout << "Index search time: " << indexTime << "µs\n";
-    cout << "Found " << indexResults.size() << " results using index\n";
-
-    // Measure table scan time
-    auto scanStart = chrono::high_resolution_clock::now();
-    vector<Rid> scanResults;
+    auto startTime = std::chrono::high_resolution_clock::now();
     int pageId = 0;
-    int maxPages = 1000; // Limit scan to prevent infinite loop
+    int matchingRows = 0;
+    int totalRows = 0;
 
-    while (pageId < maxPages) {
-        Page *page = bm.getPage(pageId, "movies.bin");
+    // Get file size
+    ifstream f(movieFile, ios::binary);
+    f.seekg(0, ios::end);
+    std::streampos fileSize = f.tellg();
+    f.close();
+
+    while (pageId * MAX_PAGE_SIZE < fileSize) {
+        Page *page = bm.getPage(pageId, movieFile);
         if (!page) break;
-
         for (int slotId = 0; slotId < page->getNumRecords(); slotId++) {
             Row *row = page->getRow(slotId);
             if (row) {
-                try {
-                    string movieIdStr(reinterpret_cast<const char *>(row->movieId.data()),
-                                      row->movieId.size());
-                    int movieId = stoi(movieIdStr);
-                    if (movieId == searchId) {
-                        scanResults.push_back({pageId, slotId});
-                    }
-                } catch (const exception &e) {
-                    // Skip invalid movieIds
+                totalRows++;
+                // Construct a fixed-size key from the row's movieId field.
+                FixedMovieIdString key(string(reinterpret_cast<const char *>(row->movieId.data()),
+                                              row->movieId.size()));
+                if (key >= startId && key <= endId) {
+                    matchingRows++;
                 }
                 delete row;
             }
         }
-        bm.unpinPage(pageId, "movies.bin");
+        bm.unpinPage(pageId, movieFile);
         pageId++;
     }
+    auto endTime = std::chrono::high_resolution_clock::now();
+    double durationMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+    cout << "[Direct Scan] Range [" << startId.toString() << ", " << endId.toString()
+         << "] matched " << matchingRows << " rows in " << durationMs << " ms.\n";
+    return {durationMs, matchingRows, totalRows};
+}
 
-    auto scanEnd = chrono::high_resolution_clock::now();
-    auto scanTime = chrono::duration_cast<chrono::microseconds>(scanEnd - scanStart).count();
+// Helper function for method 2: Use the movieId index.
+pair<double, int> indexBasedRangeQuery_movieId(BufferManager &bm, const string &movieFile,
+                                               const FixedMovieIdString &startId,
+                                               const FixedMovieIdString &endId)
+{
+    auto startTime = std::chrono::high_resolution_clock::now();
 
-    cout << "Table scan time: " << scanTime << "µs\n";
-    cout << "Found " << scanResults.size() << " results using table scan\n";
-    cout << "Speed-up: " << (double)scanTime / indexTime << "x\n";
+    // Assume the movieId index has been built and is stored in "movieId_index.bin"
+    // and that its key type is FixedTitleSizeString.
+    BTree<FixedMovieIdString> movieIdIndex("movieId_index.bin", &bm);
+
+    // Get all record IDs (RIDs) in the range.
+    vector<Rid> rids = movieIdIndex.rangeSearch(startId, endId);
+
+    int matchingRows = 0;
+    for (const auto &rid : rids) {
+        int pageId = rid.first;
+        int slotId = rid.second;
+        Page *page = bm.getPage(pageId, movieFile);
+        if (!page) continue;
+        Row *row = page->getRow(slotId);
+        if (row) {
+            FixedMovieIdString key(
+                string(reinterpret_cast<const char *>(row->movieId.data()), row->movieId.size()));
+            if (key >= startId && key <= endId) {
+                matchingRows++;
+            }
+            delete row;
+        }
+        bm.unpinPage(pageId, movieFile);
+    }
+    auto endTime = std::chrono::high_resolution_clock::now();
+    double durationMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+    cout << "[Index Based] Range [" << startId.toString() << ", " << endId.toString()
+         << "] matched " << matchingRows << " rows in " << durationMs << " ms.\n";
+    return {durationMs, matchingRows};
+}
+
+// Test P2: Compare direct scan versus index-based range query on movieId.
+void test_P2(DatabaseCatalog &catalog)
+{
+    cout << "\n=== Test P2: Range query test on movieId attribute ===\n";
+    auto movieTableInfo = catalog.getTable("Movie");
+    string movieFile = movieTableInfo.filePath;
+
+    BufferManager bm(20);
+    bm.registerFile(movieFile);
+
+    // Define a set of range queries with increasing selectivity.
+    // For example, these ranges are defined by fixed movieId values.
+    vector<pair<FixedMovieIdString, FixedMovieIdString>> ranges = {
+        {FixedMovieIdString("tt0000001"), FixedMovieIdString("tt0000100")},
+        {FixedMovieIdString("tt0000001"), FixedMovieIdString("tt0001000")},
+        {FixedMovieIdString("tt0000001"), FixedMovieIdString("tt0010000")},
+        {FixedMovieIdString("tt0000001"), FixedMovieIdString("tt0100000")},
+        {FixedMovieIdString("tt0000001"), FixedMovieIdString("tt1000000")}};
+
+    // Vectors for plotting data.
+    vector<double> selectivities; // e.g., fraction of rows matched (if you have total row count)
+    vector<double> directTimes;
+    vector<double> indexTimes;
+    vector<double> ratioTimes;
+
+    // For each range, run both query methods.
+    for (auto &range : ranges) {
+        // {time, matchedRows, totalRows}
+        tuple<double, int, int> directResult =
+            directScanRangeQuery_movieId(bm, movieFile, range.first, range.second);
+        pair<double, int> indexResult =
+            indexBasedRangeQuery_movieId(bm, movieFile, range.first, range.second);
+        double tDirect = std::get<0>(directResult);
+        double tIndex = indexResult.first;
+
+        // Compute selectivity as the fraction of rows matched in a direct scan.
+        int matchedRows = std::get<1>(directResult);
+        int totalRows = std::get<2>(directResult);
+        double selectivity = static_cast<double>(matchedRows) / static_cast<double>(totalRows);
+        double ratio = (tIndex != 0) ? (tDirect / tIndex) : 0;
+
+        selectivities.push_back(selectivity);
+        directTimes.push_back(tDirect);
+        indexTimes.push_back(tIndex);
+        ratioTimes.push_back(ratio);
+
+        cout << "Range [" << range.first.toString() << ", " << range.second.toString() << "]: "
+             << "selectivity=" << selectivity << ", direct=" << tDirect << "ms, index=" << tIndex
+             << "ms, ratio=" << ratio << "\n";
+    }
+
+    // Print out data for plotting.
+    cout << "\nSelectivity, DirectTime(ms), IndexTime(ms), Ratio\n";
+    for (size_t i = 0; i < selectivities.size(); i++) {
+        cout << selectivities[i] << ", " << directTimes[i] << ", " << indexTimes[i] << ", "
+             << ratioTimes[i] << "\n";
+    }
+
+    // Export results to CSV for further analysis.
+    exportResultsToCSV(selectivities, directTimes, indexTimes, ratioTimes, "test_P2_result.csv");
 }
 
 int main()
@@ -492,9 +687,9 @@ int main()
         test_C3_point_search(catalog);
         test_C4_range_search(catalog);
 
-        // // Performance Tests
-        // test_P1_performance();
-        // test_P2_performance();
+        // Performance Tests
+        test_P1(catalog);
+        test_P2(catalog);
 
         cout << "\nAll tests completed successfully!\n";
     } catch (const exception &e) {
