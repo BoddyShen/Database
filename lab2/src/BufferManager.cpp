@@ -106,7 +106,7 @@ Page *BufferManager::getPage(int pageId, const std::string filePath)
 
         // load the requested page from disk
         // we assume the disk file contains the page, the pid check logic should be implemented by
-        // the caller
+        // the caller, pageId logic may differ in data file and index file
         Page *page = &bufferPool[frameIndex];
         page->setPid(pageId);
         fileTable[filePath]->fs.seekg(pageId * MAX_PAGE_SIZE);

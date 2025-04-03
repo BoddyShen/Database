@@ -39,7 +39,7 @@ void test_insert()
         tree.insert(i, {0, i});
     }
     auto end = std::chrono::high_resolution_clock::now();
-    std::cout << "bulk insert time: "
+    std::cout << "One by one insertion time: "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
               << "ms\n";
     auto r1 = tree.search(283);

@@ -81,7 +81,7 @@ BTree<K>::BTree(const std::string filePath, BufferManager *bm)
         bm->unpinPage(0, filePath);
     } else {
         // reserve the first page for the header page
-        bm->createPage(filePath) != nullptr;
+        bm->createPage(filePath);
         bm->unpinPage(0, filePath);
     }
 }
@@ -296,7 +296,7 @@ template <typename K> int BTree<K>::findLeaf(K key)
     TreeNode<K> cur_node(bm->getPage(cur_pid, filePath)->getPageData());
     while (!cur_node.isLeaf()) {
         int pos = cur_node.getSize() - 1;
-        for (int i = 1; i < cur_node.template getSize(); ++i) {
+        for (int i = 1; i < cur_node.getSize(); ++i) {
             if (key <= cur_node.template getKey<int>(i)) {
                 pos = i - 1;
                 break;

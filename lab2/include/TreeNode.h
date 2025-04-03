@@ -6,6 +6,8 @@
 #include <iostream>
 
 // internal node: V = pid; leaf node: V = Rid
+// data layout: [isLeaf:bool][size:int][next pid or Rid:int]
+// storage layout: [K:V][K:V]...[K:V]
 template <typename K> class TreeNode
 {
   public:
