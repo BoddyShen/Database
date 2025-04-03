@@ -158,11 +158,12 @@ void test_C1_title_index(DatabaseCatalog &catalog)
             scanMovies<FixedTitleSizeString>(bm, MOVIE_DB_FILE, [](const Row &row) -> string {
                 return string(reinterpret_cast<const char *>(row.title.data()), row.title.size());
             });
-
+        int count = 0;
         for (const auto &record : titleRecords) {
             titleIndex.insert(record.first, record.second);
-            if (titleRecords.size() % 100000 == 0) {
-                cout << "Inserted " << titleRecords.size() << " records into title index\n";
+            count++;
+            if (count % 100000 == 0) {
+                cout << "Inserted " << count << " records into title index\n";
                 cout << "Last record: " << record.first.toString() << "\n";
                 cout << "Last record RID: " << record.second.first << ", " << record.second.second
                      << "\n";
