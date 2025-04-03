@@ -25,7 +25,6 @@ template <typename K> class BTree
 
     /**
      * Inserts a key-value pair into the B+ tree.
-     * If the key already exists, it updates the value.
      *
      * @param key The key to insert.
      * @param rid The value associated with the key.

@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-add_definitions (-Wall -Iinclude)
+add_definitions (-O3 -Wall -Iinclude)
 
 # Include directories
 include_directories(include)
