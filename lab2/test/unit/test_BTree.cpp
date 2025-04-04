@@ -1,7 +1,12 @@
 #include "BTree.h"
+#include "DatabaseCatalog.h"
+#include <cassert>
 #include <chrono>
 #include <iostream>
 
+using namespace std;
+
+// Test cases for BTree operations
 void test_bulk_insert()
 {
     std::cout << "testing bulk insert, point search, range search\n";

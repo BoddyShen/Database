@@ -17,10 +17,10 @@ To compile the project, enter the lab2 folder and run:
 mkdir -p build && cd build && cmake .. && make
 ```
 
-To run a simple unit test on B+ tree, run:
+To run unit test, run:
 
 ```
-./test_unit
+make run_unit_tests
 ```
 
 To run the correctness and performance test on small dataset with 2000 rows, run:

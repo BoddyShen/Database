@@ -90,8 +90,8 @@ int loadMovieData()
 }
 
 // A generic helper to scan the Movies table.
-// FixedStringType is either FixedTitleSizeString or FixedMovieIdString, since the BTrees accept
-// only fixed-size keys.
+// FixedStringType is either FixedTitleSizeString or FixedMovieIdString, since the BTrees only
+// accept fixed-size keys.
 template <typename FixedStringType>
 vector<pair<FixedStringType, Rid>> scanMovies(BufferManager &bm, const std::string &movieFile,
                                               std::function<string(const Row &)> keyExtractor)
