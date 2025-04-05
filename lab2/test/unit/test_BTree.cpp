@@ -2,6 +2,7 @@
 #include "DatabaseCatalog.h"
 #include <cassert>
 #include <chrono>
+#include <climits>  // Add this for INT_MIN and INT_MAX
 #include <iostream>
 
 using namespace std;
@@ -111,12 +112,83 @@ void test_sequential_operations()
     std::cout << "Sequential insert and range search passed\n";
 }
 
+// Test boundary values and edge cases
+void test_boundary_values() {
+    std::cout << "Testing boundary values and edge cases...\n";
+    BufferManager bm(20);
+    BTree<int> tree("boundary_tree.bin", &bm);
+    
+    // Test with more reasonable boundary values
+    tree.insert(-1000000, {1, -1000000});
+    tree.insert(1000000, {1, 1000000});
+    
+    // Test searching for minimum value
+    auto r1 = tree.search(-1000000);
+    assert(r1.size() == 1);
+    assert(r1[0].second == -1000000);
+    std::cout << "Minimum value search passed\n";
+    
+    // Test searching for maximum value
+    auto r2 = tree.search(1000000);
+    assert(r2.size() == 1);
+    assert(r2[0].second == 1000000);
+    std::cout << "Maximum value search passed\n";
+    
+    // Test range search including boundary values
+    auto r3 = tree.rangeSearch(-1000000, -999999);  // Test narrow range for minimum
+    assert(r3.size() == 1);
+    assert(r3[0].second == -1000000);
+    
+    auto r4 = tree.rangeSearch(999999, 1000000);    // Test narrow range for maximum
+    assert(r4.size() == 1);
+    assert(r4[0].second == 1000000);
+    
+    std::cout << "Boundary values test passed!\n";
+}
+
+// Test mixed operations
+void test_mixed_operations() {
+    std::cout << "Testing mixed operations...\n";
+    BufferManager bm(20);
+    BTree<int> tree("mixed_tree.bin", &bm);
+    
+    // Insert some initial values
+    std::vector<std::pair<int, Rid>> initial_data;
+    for (int i = 0; i < 5; i++) {
+        initial_data.push_back({i * 10, {1, i * 10}});  // 0, 10, 20, 30, 40
+    }
+    tree.bulkInsert(initial_data);
+    
+    // Insert individual values
+    tree.insert(15, {1, 15});  // Insert between existing values
+    tree.insert(25, {1, 25});
+    tree.insert(0, {2, 0});   // Duplicate key
+    
+    // Test point search after mixed insertions
+    auto r1 = tree.search(0);
+    assert(r1.size() == 2);  // Should find both entries for key 0
+    assert(r1[0].first == 1 && r1[0].second == 0);
+    assert(r1[1].first == 2 && r1[1].second == 0);
+    
+    // Test range search after mixed operations
+    auto r2 = tree.rangeSearch(10, 25);
+    assert(r2.size() == 4);  // Should find 10, 15, 20, 25
+    assert(r2[0].second == 10);
+    assert(r2[1].second == 15);
+    assert(r2[2].second == 20);
+    assert(r2[3].second == 25);
+    
+    std::cout << "Mixed operations test passed!\n";
+}
+
 int main()
 {
     test_bulk_insert();
     test_insert();
     test_small_dataset();
     test_sequential_operations();
+    test_boundary_values();
+    test_mixed_operations();
     
     std::cout << "All tests passed!\n";
     return 0;
