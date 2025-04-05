@@ -161,6 +161,7 @@ template <typename K> void BTree<K>::insertIntoParent(K key, int n1, int n2)
         parent.setIsLeaf(false);
         parent.template insertValue<int>(n1, 0);
         parents[n1] = root;
+        parent.setSize(1);
         bm->unpinPage(root, filePath);
     }
 

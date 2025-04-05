@@ -46,11 +46,9 @@ void test_insert_int()
     BufferManager bm(20);
     bm.registerFile("fake_file.bin");
     BTree<int> tree("tree.bin", &bm);
-    std::vector<std::pair<int, Rid>> data;
     for (int i = 0; i < 100000; ++i) {
-        data.push_back({i, {0, i}});
+        tree.insert(i, {0, i});
     }
-    tree.bulkInsert(data);
 
     auto start = std::chrono::high_resolution_clock::now();
     for (int i = 0; i < 100000; ++i) {

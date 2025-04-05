@@ -480,7 +480,6 @@ void test_P1(DatabaseCatalog &catalog)
     string indexFilePath = catalog.getIndex("title_index.bin").filePath;
 
     // Test title range search with increasing ranges
-    // TODO: Handle different matched row counts
     vector<pair<string, string>> ranges = {
         {"A", "B"}, {"A", "C"}, {"A", "G"}, {"A", "M"}, {"A", "Z"}};
 
