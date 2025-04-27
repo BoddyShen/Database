@@ -76,22 +76,20 @@ struct WorkedOnRow {
 
 // Person Row
 struct PersonRow {
-    std::array<uint8_t, MOVIE_ID_SIZE> movieId;
+    std::array<uint8_t, PERSON_ID_SIZE> personId;
     std::array<uint8_t, NAME_SIZE> name;
 
     PersonRow() = default;
 
-    // new constructor taking string_views:
-    PersonRow(const std::string &movieIdStr, const std::string &nameStr)
+    PersonRow(const std::string &personIdStr, const std::string &nameStr)
     {
-        // zero‐fill
-        movieId.fill(0);
+        personId.fill(0);
         name.fill(0);
 
-        auto mlen = std::min(movieIdStr.size(), size_t(MOVIE_ID_SIZE));
-        std::copy_n(movieIdStr.data(), mlen, movieId.begin());
+        auto plen = std::min(personIdStr.size(), size_t(PERSON_ID_SIZE));
+        std::copy_n(personIdStr.data(), plen, personId.begin());
 
-        auto nlen = std::min(nameStr.size(), size_t(PERSON_ID_SIZE));
+        auto nlen = std::min(nameStr.size(), size_t(NAME_SIZE));
         std::copy_n(nameStr.data(), nlen, name.begin());
     }
 };
