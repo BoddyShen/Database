@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Set the project name
-project(lab2)
+project(lab3)
 
 # Specify the C++ standard
 set(CMAKE_C_STANDARD 17)
@@ -33,14 +33,15 @@ add_custom_target(run_unit_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
 )
 
+######### Lab 2 ###########
 # Add end2end test files
-file(GLOB_RECURSE TEST_SOURCES test/test_end2end.cpp)
+file(GLOB_RECURSE TEST_SOURCES test/test_lab2_end2end.cpp)
 
 # Create an executable for end2end tests
-add_executable(test_end2end ${TEST_SOURCES} ${SOURCES})
+add_executable(test_lab2_end2end ${TEST_SOURCES} ${SOURCES})
 
 # Add test_end2end_small_dataset test files
-file(GLOB_RECURSE TEST_SOURCES test/test_end2end_small_dataset.cpp)
+file(GLOB_RECURSE TEST_SOURCES test/test_lab2_end2end_small_dataset.cpp)
 
 # Create an executable for test_end2end_small_dataset tests
-add_executable(test_end2end_small_dataset ${TEST_SOURCES} ${SOURCES})
+add_executable(test_lab2_end2end_small_dataset ${TEST_SOURCES} ${SOURCES})
