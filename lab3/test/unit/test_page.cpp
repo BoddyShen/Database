@@ -10,7 +10,7 @@ using namespace std;
 // Test case 1: Test inserting the first row and retrieving it
 void testInsertAndRetrieveFirstRow()
 {
-    Page *page = new Page();
+    Page<MovieRow> *page = new Page<MovieRow>();
     int rowId = page->insertRow(Row("id1", "title1"));
     assert(rowId == 0);
     Row *r = page->getRow(0);
@@ -25,7 +25,7 @@ void testInsertAndRetrieveFirstRow()
 // Test case 2: Test retrieving a non-existent row
 void testRetrieveNonExistentRow()
 {
-    Page *page = new Page();
+    Page<MovieRow> *page = new Page<MovieRow>();
     // Since no data has been inserted, retrieving index 0 should return nullptr
     assert(page->getRow(0) == nullptr);
     delete page;
@@ -35,7 +35,7 @@ void testRetrieveNonExistentRow()
 // Test case 3: Test inserting multiple rows
 void testInsertMultipleRows()
 {
-    Page *page = new Page();
+    Page<MovieRow> *page = new Page<MovieRow>();
     int rowId1 = page->insertRow(Row("id1", "title1"));
     int rowId2 = page->insertRow(Row("id2", "title2"));
     assert(rowId1 == 0);
@@ -57,7 +57,7 @@ void testInsertMultipleRows()
 // Test case 4: Test inserting a row into a full page
 void testInsertIntoFullPage()
 {
-    Page *page = new Page();
+    Page<MovieRow> *page = new Page<MovieRow>();
     // Fill the page with rows until it is full
     while (!page->isFull()) {
         page->insertRow(Row("id", "title"));
@@ -72,7 +72,7 @@ void testInsertIntoFullPage()
 // Test case 5: Test retrieving a row with a negative index
 void testRetrieveNegativeIndex()
 {
-    Page *page = new Page();
+    Page<MovieRow> *page = new Page<MovieRow>();
     page->insertRow(Row("id1", "title1"));
     assert(page->getRow(-1) == nullptr);
     delete page;
@@ -82,7 +82,7 @@ void testRetrieveNegativeIndex()
 // Test case 6: Test retrieving a row with an out-of-bounds index
 void testRetrieveOutOfBoundsIndex()
 {
-    Page *page = new Page();
+    Page<MovieRow> *page = new Page<MovieRow>();
     page->insertRow(Row("id1", "title1"));
     assert(page->getRow(1) == nullptr); // Only one row inserted, index 1 is out of bounds
     delete page;
