@@ -42,10 +42,10 @@ bool BufferManager::registerFile(const std::string filePath)
     // assume pages in disk are always full
     fs.seekg(0, std::ios::end);
     std::streampos fileSize = fs.tellg();
-    std::cout << "File size: " << fileSize << std::endl;
+    // std::cout << "File size: " << fileSize << std::endl;
     int nextPageId = fileSize / MAX_PAGE_SIZE;
     handle->nextPageId = nextPageId;
-    std::cout << "nextPageId: " << nextPageId << std::endl;
+    // std::cout << "nextPageId: " << nextPageId << std::endl;
     fileTable[filePath] = handle;
     std::cout << "file " << filePath << " registered\n";
     return is_existed;
@@ -62,16 +62,20 @@ BufferManager::~BufferManager()
 
 void BufferManager::force()
 {
+    cout << "force all pages to disk" << endl;
     // write all dirty pages to disk
     for (int i = 0; i < bufferSize; i++) {
         assert(pageMetadata[i].pinCount == 0);
         if (pageMetadata[i].isDirty) {
             int pageId = pageMetadata[i].pageId;
-            // assume the page is a MovieRow page, since we only need to write it back
-            Page<MovieRow> &dirtyPage = get<Page<MovieRow>>(bufferPool[i]);
             fstream &fs = fileTable[pageMetadata[i].file]->fs;
             fs.seekp(pageId * MAX_PAGE_SIZE);
-            fs.write(reinterpret_cast<const char *>(dirtyPage.getPageData()), MAX_PAGE_SIZE);
+            // write back whichever Page<T> is actually in bufferPool[frameId]
+            std::visit(
+                [&](auto &pg) {
+                    fs.write(reinterpret_cast<const char *>(pg.getPageData()), MAX_PAGE_SIZE);
+                },
+                bufferPool[i]);
             fs.flush();
             if (fs.fail()) {
                 std::cerr << "Error writing page " << pageId << " to disk!" << std::endl;
@@ -79,6 +83,7 @@ void BufferManager::force()
             }
         }
     }
+    cout << "force success" << endl;
 }
 
 template <typename RowType>
@@ -112,7 +117,9 @@ Page<RowType> *BufferManager::getPage(int pageId, const std::string filePath)
         // load the requested page from disk
         // we assume the disk file contains the page, the pid check logic should be implemented by
         // the caller, pageId logic may differ in data file and index file
-        auto &typedPage = get<Page<RowType>>(bufferPool[frameIndex]);
+        bufferPool[frameIndex].template emplace<Page<RowType>>();
+        auto &typedPage = std::get<Page<RowType>>(bufferPool[frameIndex]);
+        // auto &typedPage = get<Page<RowType>>(bufferPool[frameIndex]);
         typedPage.setPid(pageId);
         fileTable[filePath]->fs.seekg(pageId * MAX_PAGE_SIZE);
         fileTable[filePath]->fs.read(reinterpret_cast<char *>(typedPage.getPageData()),
@@ -151,7 +158,7 @@ template <typename RowType> Page<RowType> *BufferManager::createPage(const std::
     int pageId = fileTable[filePath]->nextPageId++;
 
     // add the new page to the buffer pool
-    bufferPool[frameIndex] = Page<RowType>();
+    bufferPool[frameIndex] = AnyPage{std::in_place_type<Page<RowType>>};
     auto &newPage = std::get<Page<RowType>>(bufferPool[frameIndex]);
 
     // update the page table and page itself
@@ -227,10 +234,14 @@ int BufferManager::findLRUFrame()
             int pageId = pageMetadata[frameId].pageId;
             if (pageMetadata[frameId].isDirty) {
                 // write to disk
-                Page<MovieRow> &evictedPage = get<Page<MovieRow>>(bufferPool[frameId]);
                 fstream &fs = fileTable[pageMetadata[frameId].file]->fs;
                 fs.seekp(pageId * MAX_PAGE_SIZE);
-                fs.write(reinterpret_cast<const char *>(evictedPage.getPageData()), MAX_PAGE_SIZE);
+                // write back whichever Page<T> is actually in bufferPool[frameId]
+                std::visit(
+                    [&](auto &pg) {
+                        fs.write(reinterpret_cast<const char *>(pg.getPageData()), MAX_PAGE_SIZE);
+                    },
+                    bufferPool[frameId]);
                 fs.flush();
                 if (fs.fail()) {
                     cerr << "Error writing page " << pageId << " to disk!" << endl;
@@ -274,9 +285,9 @@ void BufferManager::printStatus()
             // Optionally print the first few bytes of the page data in hex.
             std::cout << "  Page Data (first 16 bytes): ";
             for (int j = 0; j < 16 && j < MAX_PAGE_SIZE; j++) {
-                Page<MovieRow> &page = get<Page<MovieRow>>(bufferPool[j]);
-                std::cout << std::setw(2) << std::setfill('0') << std::hex
-                          << static_cast<int>(page.getPageData()[j]) << " ";
+                // Page<WorkedOnRow> &page = get<Page<WorkedOnRow>>(bufferPool[j]);
+                // std::cout << std::setw(2) << std::setfill('0') << std::hex
+                //           << static_cast<int>(page.getPageData()[j]) << " ";
             }
             std::cout << std::dec << std::setfill(' ') << std::endl;
         } else {
@@ -303,3 +314,7 @@ template Page<PersonRow> *BufferManager::getPage<PersonRow>(int, std::string);
 template Page<MovieRow> *BufferManager::createPage<MovieRow>(std::string);
 template Page<WorkedOnRow> *BufferManager::createPage<WorkedOnRow>(std::string);
 template Page<PersonRow> *BufferManager::createPage<PersonRow>(std::string);
+
+// for dummy usage, e.g. BTree
+template Page<char> *BufferManager::getPage<char>(int, std::string);
+template Page<char> *BufferManager::createPage<char>(std::string);

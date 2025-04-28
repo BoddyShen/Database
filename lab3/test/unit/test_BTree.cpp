@@ -13,7 +13,9 @@ void test_bulk_insert()
     std::cout << "testing bulk insert, point search, range search\n";
     remove("tree.bin");
     remove("fake_file.bin");
+    cout << "removing tree.bin and fake_file.bin\n";
     BufferManager bm(20);
+    cout << "creating buffer manager\n";
     bm.registerFile("fake_file.bin");
     BTree<int> tree("tree.bin", &bm);
     std::vector<std::pair<int, Rid>> data;
@@ -111,6 +113,7 @@ void test_sequential_operations()
 
     // Test 1: Insert and immediately search
     tree.insert(100, {1, 100});
+
     auto r1 = tree.search(100);
     assert(r1.size() == 1);
     assert(r1[0].first == 1 && r1[0].second == 100);

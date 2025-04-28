@@ -11,7 +11,8 @@
 #include <variant>
 #include <vector>
 
-using AnyPage = std::variant<Page<MovieRow>, Page<WorkedOnRow>, Page<PersonRow>>;
+// Page<char> for dummy usage, e.g. BTree
+using AnyPage = std::variant<Page<char>, Page<MovieRow>, Page<WorkedOnRow>, Page<PersonRow>>;
 
 class BufferManager
 {

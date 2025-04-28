@@ -74,20 +74,20 @@ BTree<K>::BTree(const std::string filePath, BufferManager *bm)
 {
     bool is_existed = bm->registerFile(filePath);
     if (is_existed) {
-        // read the header page
-        Page *header_page = bm->getPage(0, filePath);
+        // read the header page, <char> is dummy type
+        Page<char> *header_page = bm->getPage<char>(0, filePath);
         memcpy(&root, header_page->getPageData(), sizeof(root));
         bm->unpinPage(0, filePath);
     } else {
         // reserve the first page for the header page
-        bm->createPage(filePath);
+        bm->createPage<char>(filePath);
         bm->unpinPage(0, filePath);
     }
 }
 
 template <typename K> BTree<K>::~BTree()
 {
-    Page *header_page = bm->getPage(0, filePath);
+    Page<char> *header_page = bm->getPage<char>(0, filePath);
     memcpy(header_page->getPageData(), &root, sizeof(root));
     bm->markDirty(0, filePath);
     bm->unpinPage(0, filePath);
@@ -100,8 +100,10 @@ template <typename K> void BTree<K>::insert(K key, Rid r)
     int leaf_id = -1;
     if (root == -1) {
         // if tree is empty, create a leaf node as root node
-        Page *page = bm->createPage(filePath);
+        Page<char> *page = bm->createPage<char>(filePath);
         TreeNode<K> node(page->getPageData());
+        node.setSize(0);
+        node.setNext(-1);
         node.setIsLeaf(true);
         root = page->getPid();
         leaf_id = root;
@@ -109,7 +111,7 @@ template <typename K> void BTree<K>::insert(K key, Rid r)
     } else {
         leaf_id = findLeaf(key);
     }
-    Page *leaf_page = bm->getPage(leaf_id, filePath);
+    Page<char> *leaf_page = bm->getPage<char>(leaf_id, filePath);
     TreeNode<K> leaf(leaf_page->getPageData());
 
     // insert key value pair into leaf
@@ -128,7 +130,7 @@ template <typename K> void BTree<K>::insert(K key, Rid r)
 
     // if leaf is full, split leaf
     if (leaf.getSize() > leaf.template capacity<Rid>()) {
-        Page *new_page = bm->createPage(filePath);
+        Page<char> *new_page = bm->createPage<char>(filePath);
         TreeNode<K> new_leaf(new_page->getPageData());
         new_leaf.setIsLeaf(true);
         new_leaf.setNext(leaf.getNext());
@@ -155,7 +157,7 @@ template <typename K> void BTree<K>::insertIntoParent(K key, int n1, int n2)
 {
     // if n1 is the root, create a new node as root and set it as parent
     if (n1 == root) {
-        Page *page = bm->createPage(filePath);
+        Page<char> *page = bm->createPage<char>(filePath);
         root = page->getPid();
         TreeNode<K> parent(page->getPageData());
         parent.setIsLeaf(false);
@@ -166,7 +168,7 @@ template <typename K> void BTree<K>::insertIntoParent(K key, int n1, int n2)
     }
 
     // insert (key, n2) into parent
-    TreeNode<K> parent(bm->getPage(parents[n1], filePath)->getPageData());
+    TreeNode<K> parent(bm->getPage<char>(parents[n1], filePath)->getPageData());
     for (int i = 0; i < parent.getSize(); ++i) {
         if (n1 == parent.template getValue<int>(i)) {
             parent.template insertKeyValue<int>(key, n2, i + 1);
@@ -180,7 +182,7 @@ template <typename K> void BTree<K>::insertIntoParent(K key, int n1, int n2)
 
     // if parent is full, split parent
     if (parent.getSize() > parent.template capacity<int>()) {
-        Page *new_page = bm->createPage(filePath);
+        Page<char> *new_page = bm->createPage<char>(filePath);
         TreeNode<K> new_node(new_page->getPageData());
         new_node.setIsLeaf(false);
         // copy the key value pairs starting at ceil(n / 2) to new node
@@ -208,12 +210,14 @@ template <typename K> void BTree<K>::bulkInsert(std::vector<std::pair<K, Rid>> &
         return;
     }
 
-    Page *page = bm->createPage(filePath);
+    Page<char> *page = bm->createPage<char>(filePath);
     TreeNode<K> leaf(page->getPageData());
     leaf.setIsLeaf(true);
+    leaf.setSize(0);
+    leaf.setNext(-1);
     int leaf_id = page->getPid();
 
-    Page *root_page = bm->createPage(filePath);
+    Page<char> *root_page = bm->createPage<char>(filePath);
     TreeNode<K> root_node(root_page->getPageData());
     root_node.setIsLeaf(false);
     root = root_page->getPid();
@@ -225,7 +229,7 @@ template <typename K> void BTree<K>::bulkInsert(std::vector<std::pair<K, Rid>> &
     for (auto &record : data) {
         // if current leaf is full, create a new leaf
         if (leaf.getSize() == leaf.template capacity<Rid>()) {
-            Page *new_page = bm->createPage(filePath);
+            Page<char> *new_page = bm->createPage<char>(filePath);
             TreeNode<K> new_leaf(new_page->getPageData());
             int new_leaf_id = new_page->getPid();
             new_leaf.setIsLeaf(true);
@@ -248,7 +252,7 @@ template <typename K> std::vector<Rid> BTree<K>::search(K key)
 {
     std::vector<Rid> results;
     int leaf = findLeaf(key);
-    TreeNode<K> node(bm->getPage(leaf, filePath)->getPageData());
+    TreeNode<K> node(bm->getPage<char>(leaf, filePath)->getPageData());
     int pos = 0;
     while (node.template getKey<Rid>(pos) <= key) {
         if (node.template getKey<Rid>(pos) == key) {
@@ -258,7 +262,7 @@ template <typename K> std::vector<Rid> BTree<K>::search(K key)
         if (pos == node.getSize()) {
             bm->unpinPage(leaf, filePath);
             leaf = node.getNext();
-            node = TreeNode<K>(bm->getPage(leaf, filePath)->getPageData());
+            node = TreeNode<K>(bm->getPage<char>(leaf, filePath)->getPageData());
             pos = 0;
         }
     }
@@ -270,7 +274,7 @@ template <typename K> std::vector<Rid> BTree<K>::rangeSearch(K startKey, K endKe
 {
     std::vector<Rid> results;
     int leaf = findLeaf(startKey);
-    TreeNode<K> node(bm->getPage(leaf, filePath)->getPageData());
+    TreeNode<K> node(bm->getPage<char>(leaf, filePath)->getPageData());
     int pos = 0;
     while (node.template getKey<Rid>(pos) <= endKey) {
         if (node.template getKey<Rid>(pos) >= startKey &&
@@ -281,7 +285,7 @@ template <typename K> std::vector<Rid> BTree<K>::rangeSearch(K startKey, K endKe
         if (pos == node.getSize()) {
             bm->unpinPage(leaf, filePath);
             leaf = node.getNext();
-            node = TreeNode<K>(bm->getPage(leaf, filePath)->getPageData());
+            node = TreeNode<K>(bm->getPage<char>(leaf, filePath)->getPageData());
             pos = 0;
         }
     }
@@ -293,7 +297,7 @@ template <typename K> int BTree<K>::findLeaf(K key)
 {
     parents = std::unordered_map<int, int>();
     int cur_pid = root;
-    TreeNode<K> cur_node(bm->getPage(cur_pid, filePath)->getPageData());
+    TreeNode<K> cur_node(bm->getPage<char>(cur_pid, filePath)->getPageData());
     while (!cur_node.isLeaf()) {
         int pos = cur_node.getSize() - 1;
         for (int i = 1; i < cur_node.getSize(); ++i) {
@@ -306,7 +310,7 @@ template <typename K> int BTree<K>::findLeaf(K key)
         parents[child] = cur_pid;
         bm->unpinPage(cur_pid, filePath);
         cur_pid = child;
-        cur_node = TreeNode<K>(bm->getPage(cur_pid, filePath)->getPageData());
+        cur_node = TreeNode<K>(bm->getPage<char>(cur_pid, filePath)->getPageData());
     }
     bm->unpinPage(cur_pid, filePath);
     return cur_pid;
