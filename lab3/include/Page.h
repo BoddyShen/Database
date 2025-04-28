@@ -49,14 +49,10 @@ template <typename RowType> class Page
     std::array<uint8_t, MAX_PAGE_SIZE> pageData;
     // The number of rows currently stored in the page.
     int numRecords = 0;
-    int pageId = -1;
+    int pageId;
 };
 
-template <typename RowType> Page<RowType>::Page()
-{
-    pageData.fill(0);
-    std::memcpy(pageData.data(), &numRecords, HEADER_SIZE);
-}
+template <typename RowType> Page<RowType>::Page() { pageData.fill(0); }
 
 template <typename RowType> RowType *Page<RowType>::getRow(int rowId) const
 {
