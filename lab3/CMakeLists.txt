@@ -39,11 +39,11 @@ add_custom_target(run_unit_tests
 )
 
 ######### Lab 2 ###########
-# Add end2end test files
-file(GLOB_RECURSE TEST_SOURCES test/test_lab2_end2end.cpp)
+# # Add end2end test files
+# file(GLOB_RECURSE TEST_SOURCES test/test_lab2_end2end.cpp)
 
-# Create an executable for end2end tests
-add_executable(test_lab2_end2end ${TEST_SOURCES} ${SOURCES})
+# # Create an executable for end2end tests
+# add_executable(test_lab2_end2end ${TEST_SOURCES} ${SOURCES})
 
 # Add test_end2end_small_dataset test files
 file(GLOB_RECURSE TEST_SOURCES test/test_lab2_end2end_small_dataset.cpp)

@@ -40,7 +40,7 @@ int loadMovieData()
     cout << "Header: " << header << endl;
 
     // Create the first append page; all data will be inserted into this page.
-    Page *appendPage = bm.createPage("movie2000.bin");
+    Page<MovieRow> *appendPage = bm.createPage<MovieRow>("movie2000.bin");
     int appendPid = appendPage->getPid();
     cout << "Initial append page id: " << appendPid << endl;
 
@@ -71,7 +71,7 @@ int loadMovieData()
         // If the current page is full, unpin it and create a new page.
         if (appendPage->isFull()) {
             bm.unpinPage(appendPid, "movie2000.bin");
-            appendPage = bm.createPage("movie2000.bin");
+            appendPage = bm.createPage<MovieRow>("movie2000.bin");
             appendPid = appendPage->getPid();
             cout << "Loaded " << loadedRows << " rows" << endl;
             cout << "Created new append page, id: " << appendPid << endl;
@@ -116,7 +116,7 @@ vector<pair<FixedStringType, Rid>> scanMovies(BufferManager &bm, const std::stri
 
     int pageId = 0;
     while (pageId * MAX_PAGE_SIZE < fileSize) {
-        Page *page = bm.getPage(pageId, movieFile);
+        Page<MovieRow> *page = bm.getPage<MovieRow>(pageId, movieFile);
         if (!page) break;
         for (int slotId = 0; slotId < page->getNumRecords(); slotId++) {
             Row *row = page->getRow(slotId);
@@ -256,7 +256,7 @@ void test_C3_point_search(DatabaseCatalog &catalog)
             int pageId = rid.first;
             int slotId = rid.second;
 
-            Page *page = bm.getPage(pageId, movieTableInfo.filePath);
+            Page<MovieRow> *page = bm.getPage<MovieRow>(pageId, movieTableInfo.filePath);
             if (!page) continue;
             Row *row = page->getRow(slotId);
             if (!row) continue;
@@ -298,7 +298,7 @@ void test_C3_point_search(DatabaseCatalog &catalog)
             int pageId = rid.first;
             int slotId = rid.second;
             cout << "Found movie at page " << pageId << ", slot " << slotId << "\n";
-            Page *page = bm.getPage(pageId, movieTableInfo.filePath);
+            Page<MovieRow> *page = bm.getPage<MovieRow>(pageId, movieTableInfo.filePath);
             Row *row = page->getRow(slotId);
             string foundId(reinterpret_cast<const char *>(row->movieId.data()),
                            row->movieId.size());
@@ -336,7 +336,7 @@ void test_C4_range_search(DatabaseCatalog &catalog)
     cout << "Found " << titleResults.size() << " results in title range [" << startTitle << ", "
          << endTitle << "]\n";
     for (const auto &rid : titleResults) {
-        Page *page = bm.getPage(rid.first, movieTableInfo.filePath);
+        Page<MovieRow> *page = bm.getPage<MovieRow>(rid.first, movieTableInfo.filePath);
         Row *row = page->getRow(rid.second);
         string foundTitle(reinterpret_cast<const char *>(row->title.data()), row->title.size());
         cout << "Found movie: " << foundTitle << "\n";
@@ -358,7 +358,7 @@ void test_C4_range_search(DatabaseCatalog &catalog)
     cout << "Found " << idResults.size() << " results in movieId range [" << startId << ", "
          << endId << "]\n";
     for (const auto &rid : idResults) {
-        Page *page = bm.getPage(rid.first, movieTableInfo.filePath);
+        Page<MovieRow> *page = bm.getPage<MovieRow>(rid.first, movieTableInfo.filePath);
         Row *row = page->getRow(rid.second);
         string movieId(reinterpret_cast<const char *>(row->movieId.data()), row->movieId.size());
         FixedMovieIdString foundIdStr(movieId);
@@ -405,7 +405,7 @@ tuple<double, int, int> directScanRangeQuery(BufferManager &bm, const string &mo
     FixedTitleSizeString endTitleStr(endTitle);
 
     while (pageId * MAX_PAGE_SIZE < fileSize) {
-        Page *page = bm.getPage(pageId, movieFile);
+        Page<MovieRow> *page = bm.getPage<MovieRow>(pageId, movieFile);
         if (!page) break;
         for (int slotId = 0; slotId < page->getNumRecords(); slotId++) {
             Row *row = page->getRow(slotId);
@@ -451,7 +451,7 @@ pair<double, int> indexBasedRangeQuery(BufferManager &bm, const string &movieFil
     for (const auto &rid : rids) {
         int pageId = rid.first;
         int slotId = rid.second;
-        Page *page = bm.getPage(pageId, movieFile);
+        Page<MovieRow> *page = bm.getPage<MovieRow>(pageId, movieFile);
         if (!page) continue;
         Row *row = page->getRow(slotId);
         if (row) {
@@ -540,7 +540,7 @@ tuple<double, int, int> directScanRangeQuery_movieId(BufferManager &bm, const st
     f.close();
 
     while (pageId * MAX_PAGE_SIZE < fileSize) {
-        Page *page = bm.getPage(pageId, movieFile);
+        Page<MovieRow> *page = bm.getPage<MovieRow>(pageId, movieFile);
         if (!page) break;
         for (int slotId = 0; slotId < page->getNumRecords(); slotId++) {
             Row *row = page->getRow(slotId);
@@ -584,7 +584,7 @@ pair<double, int> indexBasedRangeQuery_movieId(BufferManager &bm, const string &
     for (const auto &rid : rids) {
         int pageId = rid.first;
         int slotId = rid.second;
-        Page *page = bm.getPage(pageId, movieFile);
+        Page<MovieRow> *page = bm.getPage<MovieRow>(pageId, movieFile);
         if (!page) continue;
         Row *row = page->getRow(slotId);
         if (row) {
