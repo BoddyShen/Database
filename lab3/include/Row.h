@@ -16,6 +16,11 @@ using FixedPersonIdString = FixedSizeString<PERSON_ID_SIZE>;
 using FixedCategorySizeString = FixedSizeString<CATEGORY_SIZE>;
 using FixedNameSizeString = FixedSizeString<NAME_SIZE>;
 
+// Extract fields from RowType to Tuple
+struct Tuple {
+    std::vector<std::string> fields;
+};
+
 // Movie Row
 struct MovieRow {
     std::array<uint8_t, MOVIE_ID_SIZE> movieId;
@@ -37,6 +42,16 @@ struct MovieRow {
         // copy up to TITLE_SIZE
         auto tlen = std::min(titleStr.size(), size_t(TITLE_SIZE));
         std::copy_n(titleStr.data(), tlen, title.begin());
+    }
+
+    Tuple toTuple() const
+    {
+        std::string m(reinterpret_cast<const char *>(movieId.data()),
+                      strnlen(reinterpret_cast<const char *>(movieId.data()), MOVIE_ID_SIZE));
+        std::string t(reinterpret_cast<const char *>(title.data()),
+                      strnlen(reinterpret_cast<const char *>(title.data()), TITLE_SIZE));
+
+        return {{m, t}};
     }
 };
 
@@ -72,6 +87,18 @@ struct WorkedOnRow {
         auto clen = std::min(categoryStr.size(), size_t(CATEGORY_SIZE));
         std::copy_n(categoryStr.data(), clen, category.begin());
     }
+
+    Tuple toTuple() const
+    {
+        std::string m(reinterpret_cast<const char *>(movieId.data()),
+                      strnlen(reinterpret_cast<const char *>(movieId.data()), MOVIE_ID_SIZE));
+        std::string p(reinterpret_cast<const char *>(personId.data()),
+                      strnlen(reinterpret_cast<const char *>(personId.data()), PERSON_ID_SIZE));
+        std::string c(reinterpret_cast<const char *>(category.data()),
+                      strnlen(reinterpret_cast<const char *>(category.data()), CATEGORY_SIZE));
+
+        return {{m, p, c}};
+    }
 };
 
 // Person Row
@@ -91,6 +118,15 @@ struct PersonRow {
 
         auto nlen = std::min(nameStr.size(), size_t(NAME_SIZE));
         std::copy_n(nameStr.data(), nlen, name.begin());
+    }
+
+    Tuple toTuple() const
+    {
+        std::string p(reinterpret_cast<const char *>(personId.data()),
+                      strnlen(reinterpret_cast<const char *>(personId.data()), PERSON_ID_SIZE));
+        std::string n(reinterpret_cast<const char *>(name.data()),
+                      strnlen(reinterpret_cast<const char *>(name.data()), NAME_SIZE));
+        return {{p, n}};
     }
 };
 

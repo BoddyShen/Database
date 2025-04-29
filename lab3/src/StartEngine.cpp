@@ -27,13 +27,19 @@ int main()
         if (tokens.empty()) continue;
 
         if (tokens[0] == "pre_process") {
-            if (tokens.size() != 1) {
+            if (tokens.size() != 1 && tokens.size() != 2) {
                 std::cerr << "Usage: pre_process\n";
                 continue;
             }
-            pre_process();
+            if (tokens.size() == 2) {
+                // test mode
+                bool test = (tokens[1] == "test");
+                pre_process(test);
+            } else {
+                pre_process();
+            }
         } else if (tokens[0] == "run_query") {
-            if (tokens.size() != 4) {
+            if (tokens.size() != 4 && tokens.size() != 5) {
                 std::cerr << "Usage: run_query <start> <end> <buffer_size>\n";
                 continue;
             }
@@ -44,7 +50,13 @@ int main()
                 std::cerr << "Error: buffer_size must be an integer\n";
                 continue;
             }
-            run_query(tokens[1], tokens[2], buf);
+            if (tokens.size() == 4) {
+                run_query(tokens[1], tokens[2], buf);
+            } else if (tokens.size() == 5) {
+                // test mode
+                bool test = (tokens[4] == "test");
+                run_query(tokens[1], tokens[2], buf, test);
+            }
         } else {
             std::cerr << "Unknown command: " << tokens[0] << "\n";
             printUsage();
