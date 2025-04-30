@@ -65,6 +65,12 @@ void BufferManager::force()
     cout << "force all pages to disk" << endl;
     // write all dirty pages to disk
     for (int i = 0; i < bufferSize; i++) {
+        if (pageMetadata[i].pinCount != 0) {
+            std::cerr << "Error: page " << pageMetadata[i].pageId
+                      << " is still pinned, cannot force to disk!" << std::endl;
+            std::cerr << "file: " << pageMetadata[i].file << endl;
+            continue;
+        }
         assert(pageMetadata[i].pinCount == 0);
         if (pageMetadata[i].isDirty) {
             int pageId = pageMetadata[i].pageId;
@@ -318,3 +324,6 @@ template Page<PersonRow> *BufferManager::createPage<PersonRow>(std::string);
 // for dummy usage, e.g. BTree
 template Page<char> *BufferManager::getPage<char>(int, std::string);
 template Page<char> *BufferManager::createPage<char>(std::string);
+
+template Page<WorkedOnKeyRow> *BufferManager::getPage<WorkedOnKeyRow>(int, std::string);
+template Page<WorkedOnKeyRow> *BufferManager::createPage<WorkedOnKeyRow>(std::string);

@@ -101,6 +101,21 @@ struct WorkedOnRow {
     }
 };
 
+// movieId + personId for Materialized
+struct WorkedOnKeyRow {
+    FixedMovieIdString movieId;
+    FixedPersonIdString personId;
+
+    WorkedOnKeyRow() = default;
+    WorkedOnKeyRow(std::string const &m, std::string const &p)
+    {
+        movieId = m;
+        personId = p;
+    }
+
+    Tuple toTuple() const { return {{movieId.toString(), personId.toString()}}; }
+};
+
 // Person Row
 struct PersonRow {
     std::array<uint8_t, PERSON_ID_SIZE> personId;

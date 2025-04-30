@@ -1,14 +1,14 @@
-#ifndef PROJECTOPERATOR_H
-#define PROJECTOPERATOR_H
+#ifndef PROJECTOP_H
+#define PROJECTOP_H
 
 #include "Operator.h"
 #include <vector>
 
 // Picks a subset of columns from its child.
-class ProjectOperator : public Operator
+class ProjectOp : public Operator
 {
   public:
-    ProjectOperator(Operator *child, std::vector<int> keepCols)
+    ProjectOp(Operator *child, std::vector<int> keepCols)
         : child(child), keepCols(std::move(keepCols))
     {
     }
@@ -33,4 +33,4 @@ class ProjectOperator : public Operator
     std::vector<int> keepCols;
 };
 
-#endif // PROJECTOPERATOR_H
+#endif // PROJECTOP_H

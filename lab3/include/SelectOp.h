@@ -1,15 +1,15 @@
-#ifndef SELECTOPERATOR_H
-#define SELECTOPERATOR_H
+#ifndef SELECTOP_H
+#define SELECTOP_H
 
 #include "Operator.h"
 #include <functional>
 
 // Filters a single input column (picked by idx) against a predicate.
 // SelectOperator usually be used on top of ScanOperator or IndexOperator, which as child in input.
-class SelectOperator : public Operator
+class SelectOp : public Operator
 {
   public:
-    SelectOperator(Operator *child, std::function<bool(const Tuple &)> predicate)
+    SelectOp(Operator *child, std::function<bool(const Tuple &)> predicate)
         : child(child), predicate(predicate)
     {
     }
@@ -32,4 +32,4 @@ class SelectOperator : public Operator
     Operator *child;
     std::function<bool(const Tuple &)> predicate;
 };
-#endif // SELECTOPERATOR_H
+#endif // SELECTOP_H

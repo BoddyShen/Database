@@ -1,5 +1,5 @@
-#ifndef SCANOPERATOR_H
-#define SCANOPERATOR_H
+#ifndef SCANOP_H
+#define SCANOP_H
 
 #include "BufferManager.h"
 #include "Operator.h"
@@ -10,10 +10,10 @@
 // bm: BufferManager instance to manage buffer pages
 // filePath: path to the file to be scanned
 // startPid: page id to start scanning from
-template <typename RowType> class ScanOperator : public Operator
+template <typename RowType> class ScanOp : public Operator
 {
   public:
-    ScanOperator(BufferManager &bm, const std::string &filePath, int startPid = 0)
+    ScanOp(BufferManager &bm, const std::string &filePath, int startPid = 0)
         : bm(bm), filePath(filePath), pid(startPid)
     {
     }
@@ -55,4 +55,4 @@ template <typename RowType> class ScanOperator : public Operator
     int pid, slot = 0;
 };
 
-#endif // SCANOPERATOR_H
+#endif // SCANOP_H

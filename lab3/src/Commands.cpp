@@ -1,7 +1,8 @@
 #include "Commands.h"
-#include "ProjectOperator.h"
-#include "ScanOperator.h"
-#include "SelectOperator.h"
+#include "ProjectOp.h"
+#include "ScanOp.h"
+#include "SelectOp.h"
+#include "WorkedOnMaterialOp.h"
 #include <BufferManager.h>
 #include <Row.h>
 #include <fstream>
@@ -10,78 +11,6 @@
 #include <sstream>
 
 using namespace std;
-
-// int loadMovieData(const string &tsvFileName, const string &dbFileName)
-// {
-//     // Remove existing database file to start with a clean slate.
-//     remove(dbFileName.c_str());
-//     BufferManager bm(FRAME_SIZE);
-//     bm.registerFile(dbFileName);
-
-//     // Open the TSV file
-//     ifstream tsvFile("../" + tsvFileName);
-//     if (!tsvFile.is_open()) {
-//         cerr << "Failed to open " + tsvFileName << endl;
-//         return 0;
-//     }
-
-//     string header;
-//     getline(tsvFile, header);
-//     cout << "Header: " << header << endl;
-
-//     // Create the first append page; all data will be inserted into this page.
-//     Page<MovieRow> *appendPage = bm.createPage<MovieRow>(dbFileName);
-//     int appendPid = appendPage->getPid();
-//     cout << "Initial append page id: " << appendPid << endl;
-
-//     // Read the TSV file line by line.
-//     string line;
-//     int loadedRows = 0;
-//     while (getline(tsvFile, line)) {
-//         loadedRows++;
-//         // Parse the line using tab as a delimiter.
-//         istringstream iss(line);
-//         vector<string> tokens;
-//         string token;
-//         while (getline(iss, token, '\t')) {
-//             tokens.push_back(token);
-//         }
-
-//         if (tokens.size() < 3) continue;
-//         string movieId = tokens[0];
-//         string title = tokens[2];
-
-//         // Truncate data to fixed length: movieId to 9 characters, title to 30 characters.
-//         if (movieId.size() > MOVIE_ID_SIZE) movieId = movieId.substr(0, MOVIE_ID_SIZE);
-//         if (title.size() > TITLE_SIZE) title = title.substr(0, TITLE_SIZE);
-
-//         // Create a Row object, assuming Row has a constructor accepting C-string.
-//         MovieRow row(movieId.c_str(), title.c_str());
-
-//         // If the current page is full, unpin it and create a new page.
-//         if (appendPage->isFull()) {
-//             bm.unpinPage(appendPid, dbFileName);
-//             appendPage = bm.createPage<MovieRow>(dbFileName);
-//             appendPid = appendPage->getPid();
-//             cout << "Loaded " << loadedRows << " rows" << endl;
-//             cout << "Created new append page, id: " << appendPid << endl;
-//         }
-
-//         // Insert the row into the current append page.
-//         int rowId = appendPage->insertRow(row);
-//         if (rowId == -1) {
-//             cerr << "Failed to insert row into page " << appendPid << endl;
-//         }
-//     }
-
-//     tsvFile.close();
-
-//     // After loading, unpin the last append page.
-//     bm.unpinPage(appendPid, dbFileName);
-
-//     cout << "Loaded " << loadedRows << " rows into the Movies table." << endl;
-//     return appendPid;
-// }
 
 // -----------------------------------------------------------------------------
 // loadData
@@ -238,20 +167,55 @@ void run_query(const std::string &start_range, const std::string &end_range, int
     bm.registerFile(workedonFile);
     bm.registerFile(peopleFile);
 
-    auto movieScan = new ScanOperator<MovieRow>(bm, movieFile);
+    // Movies WHERE title BETWEEN start..end
+    auto movieScan = new ScanOp<MovieRow>(bm, movieFile);
     // title is the second column in movie row
-    auto movieSelect = new SelectOperator(movieScan, [start_range, end_range](const Tuple &t) {
+    auto movieSelect = new SelectOp(movieScan, [start_range, end_range](const Tuple &t) {
         return t.fields[1] >= start_range && t.fields[1] <= end_range;
     });
     // project (movieId, title)
-    auto movieProject = new ProjectOperator(movieSelect, {0, 1});
+    auto movieProject = new ProjectOp(movieSelect, {0, 1});
 
     movieProject->open();
     Tuple movieOut;
-    while (movieProject->next(movieOut)) {
-        cout << "movie size = " << movieOut.fields.size() << endl;
-        cout << "Movie: " << movieOut.fields[0] << ", " << movieOut.fields[1] << endl;
-    }
-    cout << "Finished scanning movies." << endl;
+    cout << "Finished scanning, selecting, projecting movies." << endl;
     movieProject->close();
+
+    // WorkedOn WHERE movieId BETWEEN start..end
+    auto workedonScan = new ScanOp<WorkedOnRow>(bm, workedonFile);
+    auto selectWorkedOn =
+        new SelectOp(workedonScan, [](const Tuple &t) { return t.fields[2] == "director"; });
+
+    // project (movieId, personId, category), pick movieId and personId
+    auto workedonProject = new ProjectOp(selectWorkedOn, {0, 1});
+
+    Tuple workedonOut;
+    // workedonProject->open();
+    // while (workedonProject->next(workedonOut)) {
+    //     counter1++;
+    //     cout << "workedon size = " << workedonOut.fields.size() << endl;
+    //     cout << "WorkedOn: " << workedonOut.fields[0] << ", " << workedonOut.fields[1] << ", "
+    //          << workedonOut.fields[2] << endl;
+    //     if (workedonOut.fields[0].empty()) counter3++;
+    // }
+    // workedonProject->close();
+
+    // Materialize the workedonProject into a file
+    // By materializing it into its own file once, we pay the filter+projection cost just once, and
+    // then the join operator can scan that materialized table as many times as it wants, without
+    // re-invoking the original select.
+    auto workedonMaterialOp =
+        new WorkedOnMaterialOp(workedonProject, bm, "workedon_materialized.bin");
+    workedonMaterialOp->open();
+
+    // while (workedonMaterialOp->next(workedonOut)) {
+    //     cout << "workedon materialized size = " << workedonOut.fields.size() << endl;
+    //     cout << "WorkedOn Materialized: " << workedonOut.fields[0] << ", " <<
+    //     workedonOut.fields[1]
+    //          << endl;
+    // }
+
+    // Close all operators
+    movieProject->close();
+    workedonMaterialOp->close();
 }
