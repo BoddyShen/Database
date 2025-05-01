@@ -327,3 +327,6 @@ template Page<char> *BufferManager::createPage<char>(std::string);
 
 template Page<WorkedOnKeyRow> *BufferManager::getPage<WorkedOnKeyRow>(int, std::string);
 template Page<WorkedOnKeyRow> *BufferManager::createPage<WorkedOnKeyRow>(std::string);
+
+template Page<MovieWorkedOnRow> *BufferManager::getPage<MovieWorkedOnRow>(int, std::string);
+template Page<MovieWorkedOnRow> *BufferManager::createPage<MovieWorkedOnRow>(std::string);

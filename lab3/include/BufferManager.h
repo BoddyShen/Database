@@ -13,7 +13,7 @@
 
 // Page<char> for dummy usage, e.g. BTree
 using AnyPage = std::variant<Page<char>, Page<MovieRow>, Page<WorkedOnRow>, Page<PersonRow>,
-                             Page<WorkedOnKeyRow>>;
+                             Page<WorkedOnKeyRow>, Page<MovieWorkedOnRow>>;
 
 class BufferManager
 {

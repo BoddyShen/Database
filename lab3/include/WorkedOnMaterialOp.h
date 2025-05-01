@@ -26,8 +26,12 @@ class WorkedOnMaterialOp : public Operator
     {
         if (!materialized) {
             // Materialize the data
+            remove(tempFile.c_str());
             materialize();
             materialized = true;
+        }
+        if (!scanOpPtr) {
+            // Create a scan operator to read from the materialized file
             scanOpPtr = new ScanOp<WorkedOnKeyRow>(bm, tempFile);
             scanOpPtr->open();
         }
@@ -63,7 +67,6 @@ class WorkedOnMaterialOp : public Operator
             scanOpPtr->close();
             delete scanOpPtr;
             scanOpPtr = nullptr;
-            std::remove(tempFile.c_str());
         }
         child->close();
     }

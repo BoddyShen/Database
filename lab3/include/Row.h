@@ -44,6 +44,11 @@ struct MovieRow {
         std::copy_n(titleStr.data(), tlen, title.begin());
     }
 
+    explicit MovieRow(Tuple const &t, std::unordered_map<std::string, int> const &idx)
+        : MovieRow(t.fields.at(idx.at("movieId")), t.fields.at(idx.at("title")))
+    {
+    }
+
     Tuple toTuple() const
     {
         std::string m(reinterpret_cast<const char *>(movieId.data()),
@@ -101,21 +106,6 @@ struct WorkedOnRow {
     }
 };
 
-// movieId + personId for Materialized
-struct WorkedOnKeyRow {
-    FixedMovieIdString movieId;
-    FixedPersonIdString personId;
-
-    WorkedOnKeyRow() = default;
-    WorkedOnKeyRow(std::string const &m, std::string const &p)
-    {
-        movieId = m;
-        personId = p;
-    }
-
-    Tuple toTuple() const { return {{movieId.toString(), personId.toString()}}; }
-};
-
 // Person Row
 struct PersonRow {
     std::array<uint8_t, PERSON_ID_SIZE> personId;
@@ -143,6 +133,42 @@ struct PersonRow {
                       strnlen(reinterpret_cast<const char *>(name.data()), NAME_SIZE));
         return {{p, n}};
     }
+};
+
+// movieId + personId for Materialized
+struct WorkedOnKeyRow {
+    FixedMovieIdString movieId;
+    FixedPersonIdString personId;
+
+    WorkedOnKeyRow() = default;
+    WorkedOnKeyRow(std::string const &m, std::string const &p) : movieId(m), personId(p) {}
+
+    // idx_map indicate which Tuple field to pull for each member.
+    WorkedOnKeyRow(Tuple const &t, std::unordered_map<std::string, int> const &idx_map)
+    {
+        movieId = t.fields.at(idx_map.at("movieId"));
+        personId = t.fields.at(idx_map.at("personId"));
+    }
+
+    Tuple toTuple() const { return {{movieId.toString(), personId.toString()}}; }
+};
+
+struct MovieWorkedOnRow {
+    FixedMovieIdString movieId;
+    FixedTitleSizeString title;
+    FixedPersonIdString personId;
+
+    MovieWorkedOnRow() = default;
+
+    explicit MovieWorkedOnRow(Tuple const &t, std::unordered_map<std::string, int> const &idx)
+    {
+        movieId = t.fields.at(idx.at("movieId"));
+        title = t.fields.at(idx.at("title"));
+        personId = t.fields.at(idx.at("personId"));
+    }
+
+    // Turn it back into a Tuple if you need to feed it downstream
+    Tuple toTuple() const { return {{movieId.toString(), title.toString(), personId.toString()}}; }
 };
 
 #endif // ROW_H

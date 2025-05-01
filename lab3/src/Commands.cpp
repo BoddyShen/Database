@@ -1,4 +1,5 @@
 #include "Commands.h"
+#include "BNLJoinOp.h"
 #include "ProjectOp.h"
 #include "ScanOp.h"
 #include "SelectOp.h"
@@ -167,38 +168,32 @@ void run_query(const std::string &start_range, const std::string &end_range, int
     bm.registerFile(workedonFile);
     bm.registerFile(peopleFile);
 
-    // Movies WHERE title BETWEEN start..end
     auto movieScan = new ScanOp<MovieRow>(bm, movieFile);
-    // title is the second column in movie row
+    // Movies WHERE title BETWEEN start..end, title is the second column in movie row
     auto movieSelect = new SelectOp(movieScan, [start_range, end_range](const Tuple &t) {
         return t.fields[1] >= start_range && t.fields[1] <= end_range;
     });
     // project (movieId, title)
     auto movieProject = new ProjectOp(movieSelect, {0, 1});
 
-    movieProject->open();
-    Tuple movieOut;
-    cout << "Finished scanning, selecting, projecting movies." << endl;
-    movieProject->close();
-
-    // WorkedOn WHERE movieId BETWEEN start..end
+    // WorkedOn WHERE category = 'director'
     auto workedonScan = new ScanOp<WorkedOnRow>(bm, workedonFile);
     auto selectWorkedOn =
         new SelectOp(workedonScan, [](const Tuple &t) { return t.fields[2] == "director"; });
 
     // project (movieId, personId, category), pick movieId and personId
     auto workedonProject = new ProjectOp(selectWorkedOn, {0, 1});
+    // workedonProject->open();
+    // Tuple workedonIn;
+    // int workedonCount = 0;
+    // while (workedonProject->next(workedonIn)) {
+    //     workedonCount++;
+    //     cout << "WorkedOn: " << workedonIn.fields[0] << ", " << workedonIn.fields[1] << endl;
+    // }
+    // cout << "WorkedOn count = " << workedonCount << endl;
+    // workedonProject->close();
 
     Tuple workedonOut;
-    // workedonProject->open();
-    // while (workedonProject->next(workedonOut)) {
-    //     counter1++;
-    //     cout << "workedon size = " << workedonOut.fields.size() << endl;
-    //     cout << "WorkedOn: " << workedonOut.fields[0] << ", " << workedonOut.fields[1] << ", "
-    //          << workedonOut.fields[2] << endl;
-    //     if (workedonOut.fields[0].empty()) counter3++;
-    // }
-    // workedonProject->close();
 
     // Materialize the workedonProject into a file
     // By materializing it into its own file once, we pay the filter+projection cost just once, and
@@ -206,16 +201,63 @@ void run_query(const std::string &start_range, const std::string &end_range, int
     // re-invoking the original select.
     auto workedonMaterialOp =
         new WorkedOnMaterialOp(workedonProject, bm, "workedon_materialized.bin");
-    workedonMaterialOp->open();
 
-    // while (workedonMaterialOp->next(workedonOut)) {
-    //     cout << "workedon materialized size = " << workedonOut.fields.size() << endl;
-    //     cout << "WorkedOn Materialized: " << workedonOut.fields[0] << ", " <<
-    //     workedonOut.fields[1]
-    //          << endl;
+    // Join the two tables on movieId
+    // Each join assign (buffer_size - 6) / 2 frames.
+    // Since materialization will be done first, so we don't need to keep its frames.
+    // 3 for each join (left, right, and output), so we need 6 frames in total.
+    std::unordered_map<std::string, int> idx_map = {{"movieId", 0}, {"title", 1}};
+    auto joinOp1 = new BNLJoinOp<std::string, MovieRow>(
+        bm, movieProject, workedonMaterialOp, (buffer_size - 6) / 2, "-1.bin",
+        [](const Tuple &t) { return t.fields[0]; }, [](const Tuple &t) { return t.fields[0]; },
+        idx_map);
+
+    // joinOp1->open();
+    // Tuple joinOut;
+    // int counter = 0;
+    // while (joinOp1->next(joinOut)) {
+    //     counter++;
+    //     cout << "Join size = " << joinOut.fields.size() << endl;
+    //     cout << "Join: " << joinOut.fields[0] << ", " << joinOut.fields[1] << ", "
+    //          << joinOut.fields[2] << ", " << joinOut.fields[3] << endl;
+    //     cout << "Join count = " << counter << endl;
     // }
+    // cout << "Join count = " << counter << endl;
+    // joinOp1->close();
 
-    // Close all operators
-    movieProject->close();
-    workedonMaterialOp->close();
+    auto peopleScan = new ScanOp<PersonRow>(bm, peopleFile);
+    std::unordered_map<std::string, int> idx_map2 = {{"movieId", 0}, {"title", 1}, {"personId", 3}};
+    auto joinOp2 = new BNLJoinOp<std::string, MovieWorkedOnRow>(
+        bm, joinOp1, peopleScan, (buffer_size - 6) / 2, "-2.bin",
+        [](const Tuple &t) { return t.fields[3]; }, [](const Tuple &t) { return t.fields[0]; },
+        idx_map2);
+
+    // joinOp2->open();
+    // Tuple joinOut2;
+    // int counter2 = 0;
+    // while (joinOp2->next(joinOut2)) {
+    //     counter2++;
+    //     cout << "Join size = " << joinOut2.fields.size() << endl;
+    //     cout << "Join: " << joinOut2.fields[0] << ", " << joinOut2.fields[1] << ", "
+    //          << joinOut2.fields[2] << ", " << joinOut2.fields[3] << ", " << joinOut2.fields[4]
+    //          << endl;
+    //     cout << "Join count = " << counter2 << endl;
+    // }
+    // joinOp2->close();
+
+    auto finalProject = new ProjectOp(joinOp2, {1, 4});
+    finalProject->open();
+    Tuple finalOut;
+    int finalCounter = 0;
+    while (finalProject->next(finalOut)) {
+        finalCounter++;
+        cout << "Final: " << finalOut.fields[0] << ", " << finalOut.fields[1] << endl;
+    }
+    cout << "Final count = " << finalCounter << endl;
+    finalProject->close();
+    // 212 rows for 'A'-'B', 141 for engine
+    // 342 rows for 'A'-'C', 173 for engine
+
+    // 6686 rows for 'A'-'B' on movie select, pass
+    // 9367 rows for WorkedOn Select
 }
