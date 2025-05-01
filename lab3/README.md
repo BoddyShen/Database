@@ -23,20 +23,24 @@ To run unit test, run:
 make run_unit_tests
 ```
 
-To run the correctness and performance test on small dataset with 2000 rows, run:
+To run the database, run:
 
 ```
-./test_lab2_end2end_small_dataset
+./db_engine
 ```
 
-To run the correctness and performance test, run:
+In the interactive mode,
+
+For testing purpose, we prepare 100000 rows of each tsv file,
+
+To run pre_process in test mode, run:
 
 ```
-./test_lab2_end2end
+pre_process test
 ```
 
-To plot a graph of the result from test_end2end, run:
+To run run_query in test mode, run:
 
 ```
-python3 plot_results.py
+run_query <start_range> <end_range> <buffer_size> test
 ```

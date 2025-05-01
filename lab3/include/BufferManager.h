@@ -8,7 +8,12 @@
 #include <fstream>
 #include <string>
 #include <unordered_map>
+#include <variant>
 #include <vector>
+
+// Page<char> for dummy usage, e.g. BTree
+using AnyPage = std::variant<Page<char>, Page<MovieRow>, Page<WorkedOnRow>, Page<PersonRow>,
+                             Page<WorkedOnKeyRow>, Page<MovieWorkedOnRow>>;
 
 class BufferManager
 {
@@ -48,7 +53,7 @@ class BufferManager
      * @param filePath The file storing the page
      * @return Pointer to the Page object.
      */
-    Page *getPage(int pageId, const std::string filePath);
+    template <typename RowType> Page<RowType> *getPage(int pageId, const std::string filePath);
 
     /**
      * Creates a new page.
@@ -56,7 +61,7 @@ class BufferManager
      * @param filePath The file storing the page
      * @return Pointer to the newly created Page object.
      */
-    Page *createPage(const std::string filePath);
+    template <typename RowType> Page<RowType> *createPage(const std::string filePath);
 
     /**
      * Marks a page as dirty, indicating it needs to be written to disk before eviction.
@@ -84,14 +89,13 @@ class BufferManager
 
     void updateLruQueue(int frameId);
 
-    // store pages in a buffer pool
-    std::vector<Page> bufferPool;
+    std::vector<AnyPage> bufferPool;
 
     struct PageMetadata {
         int pageId = -1;
         bool isDirty = false;
         int pinCount = 0;
-        std::string file;
+        std::string file{};
     };
 
     std::vector<PageMetadata> pageMetadata;

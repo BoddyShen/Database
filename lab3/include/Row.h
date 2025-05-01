@@ -2,138 +2,173 @@
 #define ROW_H
 
 #include "Constants.h"
+#include "FixedSizeString.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
 
-/**
- * Struct representing a database row containing primitive data types ONLY
- * to enable serialization. The fixed sizes are defined in Constants.h.
- */
+using FixedTitleSizeString = FixedSizeString<TITLE_SIZE>;
+using FixedMovieIdString = FixedSizeString<MOVIE_ID_SIZE>;
 
-struct FixedTitleSizeString {
-    std::array<char, TITLE_SIZE> data;
+using FixedPersonIdString = FixedSizeString<PERSON_ID_SIZE>;
+using FixedCategorySizeString = FixedSizeString<CATEGORY_SIZE>;
+using FixedNameSizeString = FixedSizeString<NAME_SIZE>;
 
-    // Default constructor fills with null characters.
-    FixedTitleSizeString() { data.fill('\0'); }
-
-    // Construct from std::string, truncating or padding as needed.
-    FixedTitleSizeString(const std::string &str)
-    {
-        data.fill('\0');
-        size_t len = std::min(str.size(), TITLE_SIZE);
-        std::copy(str.begin(), str.begin() + len, data.begin());
-    }
-
-    // Convert to std::string (for printing or other operations)
-    std::string toString() const
-    {
-        // Use strnlen to handle non-null-terminated arrays.
-        return std::string(data.data(), strnlen(data.data(), TITLE_SIZE));
-    }
-
-    // Comparison operator for ordering in the BTree.
-    bool operator<(const FixedTitleSizeString &other) const
-    {
-        // Compare fixed TITLE_SIZE bytes.
-        return std::strncmp(data.data(), other.data.data(), TITLE_SIZE) < 0;
-    }
-
-    bool operator>(const FixedTitleSizeString &other) const
-    {
-        return std::strncmp(data.data(), other.data.data(), TITLE_SIZE) > 0;
-    }
-
-    bool operator==(const FixedTitleSizeString &other) const
-    {
-        return std::strncmp(data.data(), other.data.data(), TITLE_SIZE) == 0;
-    }
-
-    bool operator<=(const FixedTitleSizeString &other) const
-    {
-        return *this < other || *this == other;
-    }
-
-    bool operator>=(const FixedTitleSizeString &other) const
-    {
-        return *this > other || *this == other;
-    }
+// Extract fields from RowType to Tuple
+struct Tuple {
+    std::vector<std::string> fields;
 };
 
-struct FixedMovieIdString {
-    std::array<char, MOVIE_ID_SIZE> data;
-
-    // Default constructor fills with null characters.
-    FixedMovieIdString() { data.fill('\0'); }
-
-    // Construct from std::string, truncating or padding as needed.
-    FixedMovieIdString(const std::string &str)
-    {
-        data.fill('\0');
-        size_t len = std::min(str.size(), MOVIE_ID_SIZE);
-        std::copy(str.begin(), str.begin() + len, data.begin());
-    }
-
-    // Convert to std::string (for printing or other operations)
-    std::string toString() const
-    {
-        // Use strnlen to handle non-null-terminated arrays.
-        return std::string(data.data(), strnlen(data.data(), MOVIE_ID_SIZE));
-    }
-
-    // Comparison operator for ordering in the BTree.
-    bool operator<(const FixedMovieIdString &other) const
-    {
-        return std::strncmp(data.data(), other.data.data(), MOVIE_ID_SIZE) < 0;
-    }
-
-    bool operator>(const FixedMovieIdString &other) const
-    {
-        return std::strncmp(data.data(), other.data.data(), MOVIE_ID_SIZE) > 0;
-    }
-
-    bool operator==(const FixedMovieIdString &other) const
-    {
-        return std::strncmp(data.data(), other.data.data(), MOVIE_ID_SIZE) == 0;
-    }
-
-    bool operator<=(const FixedMovieIdString &other) const
-    {
-        return *this < other || *this == other;
-    }
-
-    bool operator>=(const FixedMovieIdString &other) const
-    {
-        return *this > other || *this == other;
-    }
-};
-
-struct Row {
+// Movie Row
+struct MovieRow {
     std::array<uint8_t, MOVIE_ID_SIZE> movieId;
     std::array<uint8_t, TITLE_SIZE> title;
 
-    Row() = default;
+    MovieRow() = default;
 
-    Row(const std::array<uint8_t, MOVIE_ID_SIZE> &movieId,
-        const std::array<uint8_t, TITLE_SIZE> &title)
-        : movieId(movieId), title(title)
+    // new constructor taking string_views:
+    MovieRow(const std::string &movieIdStr, const std::string &titleStr)
     {
-    }
-
-    // Additional constructor that accepts C-string literals.
-    Row(const char *movieIdStr, const char *titleStr)
-    {
+        // zero‐fill
         movieId.fill(0);
         title.fill(0);
-        // Copy at most MOVIE_ID_SIZE bytes from movieIdStr.
-        size_t lenMovie = std::min(std::strlen(movieIdStr), static_cast<size_t>(MOVIE_ID_SIZE));
-        std::copy(movieIdStr, movieIdStr + lenMovie, movieId.begin());
-        // Copy at most TITLE_SIZE bytes from titleStr.
-        size_t lenTitle = std::min(std::strlen(titleStr), static_cast<size_t>(TITLE_SIZE));
-        std::copy(titleStr, titleStr + lenTitle, title.begin());
+
+        // copy up to MOVIE_ID_SIZE
+        auto mlen = std::min(movieIdStr.size(), size_t(MOVIE_ID_SIZE));
+        std::copy_n(movieIdStr.data(), mlen, movieId.begin());
+
+        // copy up to TITLE_SIZE
+        auto tlen = std::min(titleStr.size(), size_t(TITLE_SIZE));
+        std::copy_n(titleStr.data(), tlen, title.begin());
     }
+
+    explicit MovieRow(Tuple const &t, std::unordered_map<std::string, int> const &idx)
+        : MovieRow(t.fields.at(idx.at("movieId")), t.fields.at(idx.at("title")))
+    {
+    }
+
+    Tuple toTuple() const
+    {
+        std::string m(reinterpret_cast<const char *>(movieId.data()),
+                      strnlen(reinterpret_cast<const char *>(movieId.data()), MOVIE_ID_SIZE));
+        std::string t(reinterpret_cast<const char *>(title.data()),
+                      strnlen(reinterpret_cast<const char *>(title.data()), TITLE_SIZE));
+
+        return {{m, t}};
+    }
+};
+
+// Used for previous code
+using Row = MovieRow;
+
+// WorkedOn Row
+struct WorkedOnRow {
+    std::array<uint8_t, MOVIE_ID_SIZE> movieId;
+    std::array<uint8_t, PERSON_ID_SIZE> personId;
+    std::array<uint8_t, CATEGORY_SIZE> category;
+
+    WorkedOnRow() = default;
+
+    // new constructor taking string_views:
+    WorkedOnRow(const std::string &movieIdStr, const std::string &personIdStr,
+                const std::string &categoryStr)
+    {
+        // zero‐fill
+        movieId.fill(0);
+        personId.fill(0);
+        category.fill(0);
+
+        // copy up to MOVIE_ID_SIZE
+        auto mlen = std::min(movieIdStr.size(), size_t(MOVIE_ID_SIZE));
+        std::copy_n(movieIdStr.data(), mlen, movieId.begin());
+
+        // copy up to PERSON_ID_SIZE
+        auto plen = std::min(personIdStr.size(), size_t(PERSON_ID_SIZE));
+        std::copy_n(personIdStr.data(), plen, personId.begin());
+
+        // copy up to CATEGORY_SIZE
+        auto clen = std::min(categoryStr.size(), size_t(CATEGORY_SIZE));
+        std::copy_n(categoryStr.data(), clen, category.begin());
+    }
+
+    Tuple toTuple() const
+    {
+        std::string m(reinterpret_cast<const char *>(movieId.data()),
+                      strnlen(reinterpret_cast<const char *>(movieId.data()), MOVIE_ID_SIZE));
+        std::string p(reinterpret_cast<const char *>(personId.data()),
+                      strnlen(reinterpret_cast<const char *>(personId.data()), PERSON_ID_SIZE));
+        std::string c(reinterpret_cast<const char *>(category.data()),
+                      strnlen(reinterpret_cast<const char *>(category.data()), CATEGORY_SIZE));
+
+        return {{m, p, c}};
+    }
+};
+
+// Person Row
+struct PersonRow {
+    std::array<uint8_t, PERSON_ID_SIZE> personId;
+    std::array<uint8_t, NAME_SIZE> name;
+
+    PersonRow() = default;
+
+    PersonRow(const std::string &personIdStr, const std::string &nameStr)
+    {
+        personId.fill(0);
+        name.fill(0);
+
+        auto plen = std::min(personIdStr.size(), size_t(PERSON_ID_SIZE));
+        std::copy_n(personIdStr.data(), plen, personId.begin());
+
+        auto nlen = std::min(nameStr.size(), size_t(NAME_SIZE));
+        std::copy_n(nameStr.data(), nlen, name.begin());
+    }
+
+    Tuple toTuple() const
+    {
+        std::string p(reinterpret_cast<const char *>(personId.data()),
+                      strnlen(reinterpret_cast<const char *>(personId.data()), PERSON_ID_SIZE));
+        std::string n(reinterpret_cast<const char *>(name.data()),
+                      strnlen(reinterpret_cast<const char *>(name.data()), NAME_SIZE));
+        return {{p, n}};
+    }
+};
+
+// movieId + personId for Materialized
+struct WorkedOnKeyRow {
+    FixedMovieIdString movieId;
+    FixedPersonIdString personId;
+
+    WorkedOnKeyRow() = default;
+    WorkedOnKeyRow(std::string const &m, std::string const &p) : movieId(m), personId(p) {}
+
+    // idx_map indicate which Tuple field to pull for each member.
+    WorkedOnKeyRow(Tuple const &t, std::unordered_map<std::string, int> const &idx_map)
+    {
+        movieId = t.fields.at(idx_map.at("movieId"));
+        personId = t.fields.at(idx_map.at("personId"));
+    }
+
+    Tuple toTuple() const { return {{movieId.toString(), personId.toString()}}; }
+};
+
+struct MovieWorkedOnRow {
+    FixedMovieIdString movieId;
+    FixedTitleSizeString title;
+    FixedPersonIdString personId;
+
+    MovieWorkedOnRow() = default;
+
+    explicit MovieWorkedOnRow(Tuple const &t, std::unordered_map<std::string, int> const &idx)
+    {
+        movieId = t.fields.at(idx.at("movieId"));
+        title = t.fields.at(idx.at("title"));
+        personId = t.fields.at(idx.at("personId"));
+    }
+
+    // Turn it back into a Tuple if you need to feed it downstream
+    Tuple toTuple() const { return {{movieId.toString(), title.toString(), personId.toString()}}; }
 };
 
 #endif // ROW_H

@@ -19,7 +19,7 @@ void testCreateAndGetPage()
     bm.registerFile(TEST_DB_FILE);
 
     // 1. Create the first page.
-    Page *p1 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p1 = bm.createPage<MovieRow>(TEST_DB_FILE);
     assert(p1 != nullptr);
     // bm.printStatus();
     cout << "Created page p1." << endl;
@@ -28,7 +28,7 @@ void testCreateAndGetPage()
     bm.unpinPage(0, TEST_DB_FILE);
 
     // 2. Get the page using getPage (p1 should be in the buffer pool).
-    Page *p1_again = bm.getPage(0, TEST_DB_FILE);
+    Page<MovieRow> *p1_again = bm.getPage<MovieRow>(0, TEST_DB_FILE);
     assert(p1_again != nullptr);
     // It should return the same page pointer.
     assert(p1 == p1_again);
@@ -37,7 +37,7 @@ void testCreateAndGetPage()
     bm.unpinPage(0, TEST_DB_FILE);
 
     // 3. Create the second page.
-    Page *p2 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p2 = bm.createPage<MovieRow>(TEST_DB_FILE);
     assert(p2 != nullptr);
     cout << "Created page p2." << endl;
     // bm.printStatus();
@@ -46,14 +46,14 @@ void testCreateAndGetPage()
 
     // 4. Create the third page.
     // Since the buffer pool has only 2 frames, this should trigger eviction.
-    Page *p3 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p3 = bm.createPage<MovieRow>(TEST_DB_FILE);
     assert(p3 != nullptr);
     cout << "Created page p3, triggering eviction." << endl;
     // Unpin page 2 (p3's page id) after creation.
     bm.unpinPage(2, TEST_DB_FILE);
 
     // Now, attempt to get page 0.
-    Page *p1_loaded = bm.getPage(0, TEST_DB_FILE);
+    Page<MovieRow> *p1_loaded = bm.getPage<MovieRow>(0, TEST_DB_FILE);
     // p1 should be evicted, p1_loaded should not be the same pointer as p1.
     assert(p1_loaded != p1);
     bm.unpinPage(0, TEST_DB_FILE);
@@ -71,25 +71,25 @@ void testInterleavedInsertAndQuery()
     bm.registerFile(TEST_DB_FILE);
 
     // 1. Create a new page.
-    Page *p = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid0 = p->getPid();
     cout << "Created page with pageId " << pid0 << endl;
 
     // 2. Insert a few rows into the page (but do not fill it completely).
     bm.markDirty(pid0, TEST_DB_FILE);
-    int rowId1 = p->insertRow(Row("id000001", "Movie One"));
-    int rowId2 = p->insertRow(Row("id000002", "Movie Two"));
+    int rowId1 = p->insertRow(MovieRow("id000001", "Movie One"));
+    int rowId2 = p->insertRow(MovieRow("id000002", "Movie Two"));
     assert(rowId1 == 0);
     assert(rowId2 == 1);
     cout << "Inserted rows " << rowId1 << " and " << rowId2 << " into page " << pid0 << endl;
 
     // Check that the rows were inserted correctly.
-    Page *p0 = bm.getPage(pid0, TEST_DB_FILE);
+    Page<MovieRow> *p0 = bm.getPage<MovieRow>(pid0, TEST_DB_FILE);
     assert(p0 == p);
-    Row *p0r0 = p0->getRow(0);
+    MovieRow *p0r0 = p0->getRow(0);
     string p0r0Str = Utilities::rowToString(*p0r0);
     assert(p0r0Str == "Movie ID: id000001, Title: Movie One");
-    Row *p0r1 = p0->getRow(1);
+    MovieRow *p0r1 = p0->getRow(1);
     string p0r1Str = Utilities::rowToString(*p0r1);
     assert(p0r1Str == "Movie ID: id000002, Title: Movie Two");
 
@@ -99,7 +99,7 @@ void testInterleavedInsertAndQuery()
 
     // 3. Create additional pages to fill up the buffer.
     // Create second page.
-    Page *p1 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p1 = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid1 = p1->getPid();
     cout << "Created page with pageId " << pid1 << endl;
     // Insert a row into p1.
@@ -109,7 +109,7 @@ void testInterleavedInsertAndQuery()
     bm.unpinPage(pid1, TEST_DB_FILE);
 
     // Create one more page, which will force eviction since capacity is 2.
-    Page *p2 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p2 = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid2 = p2->getPid();
     cout << "Created page with pageId " << pid2 << " (trigger eviction)" << endl;
     // Insert a row into p2.
@@ -119,7 +119,7 @@ void testInterleavedInsertAndQuery()
     bm.unpinPage(pid2, TEST_DB_FILE);
 
     // 4. Access the original page.
-    Page *p0_reloaded = bm.getPage(pid0, TEST_DB_FILE);
+    Page<MovieRow> *p0_reloaded = bm.getPage<MovieRow>(pid0, TEST_DB_FILE);
     cout << "Number of records: " << p0_reloaded->getNumRecords() << endl;
     // The page was evicted, p_reloaded will be a new pointer (not equal to p).
     assert(p0_reloaded != p0);
@@ -164,7 +164,7 @@ void testNoEmptyFrame()
     bm.registerFile(TEST_DB_FILE);
 
     // 1. Create a page. This page will be pinned (its pin count will be > 0).
-    Page *p = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p = bm.createPage<MovieRow>(TEST_DB_FILE);
     assert(p != nullptr);
     int pid = p->getPid();
     cout << "Created page with pageId " << pid << endl;
@@ -174,7 +174,7 @@ void testNoEmptyFrame()
     // Since the buffer pool only has 1 frame and that frame is already pinned,
     // there is no empty frame available.
     // Therefore, createPage should return nullptr.
-    Page *p2 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p2 = bm.createPage<MovieRow>(TEST_DB_FILE);
     assert(p2 == nullptr);
     cout << "As expected, no empty frame is available (createPage returned nullptr)." << endl;
 
@@ -192,25 +192,25 @@ void testEvictionPolicy()
     bm.registerFile(TEST_DB_FILE);
 
     // Create two pages and unpin them
-    Page *p1 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p1 = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid1 = p1->getPid();
     bm.unpinPage(pid1, TEST_DB_FILE);
 
-    Page *p2 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p2 = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid2 = p2->getPid();
     bm.unpinPage(pid2, TEST_DB_FILE);
 
     // Access p1 to make it recently used
-    bm.getPage(pid1, TEST_DB_FILE);
+    bm.getPage<MovieRow>(pid1, TEST_DB_FILE);
     bm.unpinPage(pid1, TEST_DB_FILE);
 
     // Create a third page, which should evict p2
-    Page *p3 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p3 = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid3 = p3->getPid();
     bm.unpinPage(pid3, TEST_DB_FILE);
 
     // Ensure p2 is evicted by trying to access it
-    Page *p2_evicted = bm.getPage(pid2, TEST_DB_FILE);
+    bm.getPage<MovieRow>(pid2, TEST_DB_FILE);
 
     std::cout << "Eviction policy test passed!" << std::endl;
     // Clean up
@@ -223,7 +223,7 @@ void testPageFullCondition()
     BufferManager bm(1);
     remove(TEST_DB_FILE.c_str());
     bm.registerFile(TEST_DB_FILE);
-    Page *p = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid = p->getPid();
 
     // Fill the page with rows until it is full
@@ -245,7 +245,7 @@ void testDirtyPageHandling()
     BufferManager bm(1);
     remove(TEST_DB_FILE.c_str());
     bm.registerFile(TEST_DB_FILE);
-    Page *p = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid = p->getPid();
 
     // Mark the page as dirty
@@ -255,7 +255,7 @@ void testDirtyPageHandling()
     bm.unpinPage(pid, TEST_DB_FILE);
 
     // Create another page to trigger eviction
-    Page *p2 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p2 = bm.createPage<MovieRow>(TEST_DB_FILE);
     assert(p2 != nullptr);
 
     // Ensure the original page was written back to disk
@@ -272,18 +272,18 @@ void testPinningLogic()
     BufferManager bm(1);
     remove(TEST_DB_FILE.c_str());
     bm.registerFile(TEST_DB_FILE);
-    Page *p = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p = bm.createPage<MovieRow>(TEST_DB_FILE);
     int pid = p->getPid();
 
     // Page is pinned, attempt to create another page should fail
-    Page *p2 = bm.createPage(TEST_DB_FILE);
+    Page<MovieRow> *p2 = bm.createPage<MovieRow>(TEST_DB_FILE);
     assert(p2 == nullptr);
 
     // Unpin the page
     bm.unpinPage(pid, TEST_DB_FILE);
 
     // Now creating another page should succeed
-    p2 = bm.createPage(TEST_DB_FILE);
+    p2 = bm.createPage<MovieRow>(TEST_DB_FILE);
     assert(p2 != nullptr);
 
     bm.unpinPage(p2->getPid(), TEST_DB_FILE);

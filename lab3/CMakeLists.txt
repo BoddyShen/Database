@@ -19,6 +19,11 @@ include_directories(include)
 # Add source files from the directories
 file(GLOB_RECURSE SOURCES src/*.cpp)
 
+# Remove the one file that has the app’s main()
+list(REMOVE_ITEM SOURCES
+     ${CMAKE_SOURCE_DIR}/src/StartEngine.cpp
+)
+
 # Glob test files from test/unit/
 file(GLOB_RECURSE TEST_SOURCES test/unit/*.cpp)
 
@@ -34,14 +39,21 @@ add_custom_target(run_unit_tests
 )
 
 ######### Lab 2 ###########
-# Add end2end test files
-file(GLOB_RECURSE TEST_SOURCES test/test_lab2_end2end.cpp)
+# # Add end2end test files
+# file(GLOB_RECURSE TEST_SOURCES test/test_lab2_end2end.cpp)
 
-# Create an executable for end2end tests
-add_executable(test_lab2_end2end ${TEST_SOURCES} ${SOURCES})
+# # Create an executable for end2end tests
+# add_executable(test_lab2_end2end ${TEST_SOURCES} ${SOURCES})
 
 # Add test_end2end_small_dataset test files
 file(GLOB_RECURSE TEST_SOURCES test/test_lab2_end2end_small_dataset.cpp)
 
 # Create an executable for test_end2end_small_dataset tests
 add_executable(test_lab2_end2end_small_dataset ${TEST_SOURCES} ${SOURCES})
+
+
+######### Lab 3 ###########
+add_executable(db_engine
+  src/StartEngine.cpp
+  ${SOURCES}
+)
