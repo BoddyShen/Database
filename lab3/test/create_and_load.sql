@@ -52,17 +52,17 @@ CREATE TABLE WorkedOn (
     -- FOREIGN KEY (personId) REFERENCES People(personId) ON DELETE CASCADE
 );
 
-\COPY Movie_Temp FROM '../title.basics100000.tsv' WITH (FORMAT CSV, DELIMITER E'\t', HEADER TRUE, NULL '\N', ENCODING 'UTF8');
+\COPY Movie_Temp FROM '../movie_clean100000.tsv' WITH (FORMAT CSV, DELIMITER E'\t', HEADER TRUE, NULL '\N', ENCODING 'UTF8');
 
 INSERT INTO Movies (movieId, title)
 SELECT tconst, LEFT(primaryTitle, 30) FROM Movie_Temp;
 
-\COPY People_Temp FROM '../name.basics100000.tsv' WITH (FORMAT CSV, DELIMITER E'\t', HEADER TRUE, NULL '\N', ENCODING 'UTF8');
+\COPY People_Temp FROM '../people_clean100000.tsv' WITH (FORMAT CSV, DELIMITER E'\t', HEADER TRUE, NULL '\N', ENCODING 'UTF8');
 INSERT INTO People (personId, name)
 SELECT nconst, primaryName FROM People_Temp;
 
 
-\COPY WorkedOn_Temp FROM '../title.principals100000.tsv' WITH (FORMAT CSV, DELIMITER E'\t', HEADER TRUE, NULL '\N', ENCODING 'UTF8');
+\COPY WorkedOn_Temp FROM '../workedon_clean100000.tsv' WITH (FORMAT CSV, DELIMITER E'\t', HEADER TRUE, NULL '\N', ENCODING 'UTF8');
 
 INSERT INTO WorkedOn (movieId, personId, category)
 SELECT tconst, nconst, category FROM WorkedOn_Temp
