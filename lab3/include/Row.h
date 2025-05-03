@@ -171,4 +171,17 @@ struct MovieWorkedOnRow {
     Tuple toTuple() const { return {{movieId.toString(), title.toString(), personId.toString()}}; }
 };
 
+
+struct TestRow {
+    int id;
+    char text[16];
+
+    Tuple toTuple() const {
+        Tuple t;
+        t.fields.push_back(std::to_string(id));
+        t.fields.push_back(std::string(text));
+        return t;
+    }
+};
+
 #endif // ROW_H
