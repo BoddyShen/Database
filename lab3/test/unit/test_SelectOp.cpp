@@ -8,20 +8,17 @@
 #include <string>
 #include <vector>
 
-std::vector<Tuple> getAllTuples(Operator* op, const std::string& opName = "Operator") {
+std::vector<Tuple> getAllTuples(Operator* op) {
     std::vector<Tuple> allTuples;
-    std::cout << "[Info] Opening " << opName << "..." << std::endl;
     op->open();
     Tuple tempTuple;
     int count = 0;
-    std::cout << "[Info] Reading tuples from " << opName << "..." << std::endl;
     while (op->next(tempTuple)) {
         allTuples.push_back(tempTuple);
         count++;
     }
-     std::cout << "[Info] Finished reading " << count << " tuples from " << opName << "." << std::endl;
     op->close();
-    std::cout << "[Info] Closed " << opName << "." << std::endl;
+    std::cout << "[Info] Finished reading " << count << " tuples." << std::endl;
     return allTuples;
 }
 
@@ -52,7 +49,7 @@ void testSelectSpecificMovie() {
     };
     SelectOp selectOp(&mockScanner, predicate);
 
-    std::vector<Tuple> results = getAllTuples(&selectOp, "SelectOp (Specific ID)");
+    std::vector<Tuple> results = getAllTuples(&selectOp);
 
     std::cout << "[Info] Expected selected tuples: 1" << std::endl;
     std::cout << "[Info] Actual selected tuples:   " << results.size() << std::endl;
@@ -82,7 +79,7 @@ void testSelectMoviesStartingWithLe() {
     SelectOp selectOp(&mockScanner, predicate);
 
     
-    std::vector<Tuple> results = getAllTuples(&selectOp, "SelectOp (Le Prefix)");
+    std::vector<Tuple> results = getAllTuples(&selectOp);
 
     std::cout << "[Info] Expected selected tuples: 2" << std::endl;
     std::cout << "[Info] Actual selected tuples:   " << results.size() << std::endl;
@@ -122,7 +119,7 @@ void testSelectNoResults() {
     };
     SelectOp selectOp(&mockScanner, predicate);
 
-    std::vector<Tuple> results = getAllTuples(&selectOp, "SelectOp (No Results)");
+    std::vector<Tuple> results = getAllTuples(&selectOp);
 
     std::cout << "[Info] Expected selected tuples: 0" << std::endl;
     std::cout << "[Info] Actual selected tuples:   " << results.size() << std::endl;
