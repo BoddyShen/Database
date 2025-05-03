@@ -50,7 +50,7 @@ query() {
     psql -d "$DB_NAME" -A -F $'\t' -P footer=off -o "$psql_out" -c "$query"
     echo "→ wrote $psql_out"
 
-    cpp_out="../build/join_out.tsv"
+    cpp_out="./build/cpp_join_out.tsv"
     psql_out="postgreSQL_output.tsv"
 
     # sort them (locale‑neutral C sort)

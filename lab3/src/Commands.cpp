@@ -220,7 +220,7 @@ void run_query(const std::string &start_range, const std::string &end_range, int
 
     finalProject->open();
     Tuple joinOut;
-    std::ofstream fout("join_out.tsv");
+    std::ofstream fout("cpp_join_out.tsv");
     fout << "title\tname\n";
 
     while (finalProject->next(joinOut)) {
