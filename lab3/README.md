@@ -43,4 +43,15 @@ To run run_query in test mode, run:
 
 ```
 run_query <start_range> <end_range> <buffer_size> test
+e.g. run_query A Z 20 test
+```
+
+To compare the results to PostgreSQL, run:
+
+```
+cd ../test
+./postgres_command.sh create_and_load
+./postgres_command.sh query '<start_range>' '<end_range>'
+
+e.g.  ./postgres_command.sh query 'A' 'Z'
 ```

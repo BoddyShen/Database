@@ -18,11 +18,51 @@ query() {
 
     echo "$start_range $end_range "
 
+    # query1="SELECT movieId, title
+    # FROM Movies
+    # WHERE title COLLATE \"C\" >= '$start_range'
+    # AND title COLLATE \"C\" <= '$end_range';"
+    # $PSQL -c "$query1"
+
+    # query2="SELECT movieId, personId, category
+    # FROM WorkedOn
+    # WHERE category = 'director'"
+    # $PSQL -c "$query2"
+
+    # query3="SELECT Movies.movieId, Movies.title, WorkedOn.movieId, WorkedOn.personId
+    # FROM Movies, WorkedOn
+    # WHERE title COLLATE \"C\" >= '$start_range'
+    # AND title COLLATE \"C\" <= '$end_range' AND category = 'director' AND Movies.movieId = WorkedOn.movieId;" 
+
+    # query3="SELECT Movies.movieId, Movies.title, WorkedOn.movieId, WorkedOn.personId
+    # FROM Movies, WorkedOn
+    # WHERE title >= '$start_range'
+    # AND title <= '$end_range' AND category = 'director' AND Movies.movieId = WorkedOn.movieId;" 
+
+    # $PSQL -c "$query3"
+
     query="SELECT title, name
     FROM Movies, WorkedOn, People
     WHERE title >= '$start_range' AND title <= '$end_range' AND category = 'director' AND Movies.movieId = WorkedOn.movieId AND WorkedOn.personId = People.personId;"
 
-    $PSQL -c "$query"
+    # $PSQL -c "$query"
+    psql_out="postgreSQL_output.tsv"
+    psql -d "$DB_NAME" -A -F $'\t' -P footer=off -o "$psql_out" -c "$query"
+    echo "→ wrote $psql_out"
+
+    cpp_out="../build/join_out.tsv"
+    psql_out="postgreSQL_output.tsv"
+
+    # sort them (locale‑neutral C sort)
+    sort "$cpp_out"   > sorted_cpp.tsv
+    sort "$psql_out"  > sorted_psql.tsv
+
+    if diff -u sorted_cpp.tsv sorted_psql.tsv > /dev/null; then
+        echo "Congratulation! The two are the same!"
+    else
+        echo "Differences found!"
+    fi
+
     exit 0
 }
 

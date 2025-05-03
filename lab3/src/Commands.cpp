@@ -88,9 +88,9 @@ void pre_process(bool test)
         movieFile = "movie100000.bin";
         workedonFile = "workedon100000.bin";
         peopleFile = "people100000.bin";
-        movieTsvFile = "title.basics100000.tsv";
-        workedonTsvFile = "title.principals100000.tsv";
-        peopleTsvFile = "name.basics100000.tsv";
+        movieTsvFile = "movie_clean100000.tsv";
+        workedonTsvFile = "workedon_clean100000.tsv";
+        peopleTsvFile = "people_clean100000.tsv";
     } else {
         movieFile = "movie.bin";
         workedonFile = "workedon.bin";
@@ -175,25 +175,12 @@ void run_query(const std::string &start_range, const std::string &end_range, int
     });
     // project (movieId, title)
     auto movieProject = new ProjectOp(movieSelect, {0, 1});
-
-    // WorkedOn WHERE category = 'director'
     auto workedonScan = new ScanOp<WorkedOnRow>(bm, workedonFile);
     auto selectWorkedOn =
         new SelectOp(workedonScan, [](const Tuple &t) { return t.fields[2] == "director"; });
 
     // project (movieId, personId, category), pick movieId and personId
     auto workedonProject = new ProjectOp(selectWorkedOn, {0, 1});
-    // workedonProject->open();
-    // Tuple workedonIn;
-    // int workedonCount = 0;
-    // while (workedonProject->next(workedonIn)) {
-    //     workedonCount++;
-    //     cout << "WorkedOn: " << workedonIn.fields[0] << ", " << workedonIn.fields[1] << endl;
-    // }
-    // cout << "WorkedOn count = " << workedonCount << endl;
-    // workedonProject->close();
-
-    Tuple workedonOut;
 
     // Materialize the workedonProject into a file
     // By materializing it into its own file once, we pay the filter+projection cost just once, and
@@ -212,52 +199,33 @@ void run_query(const std::string &start_range, const std::string &end_range, int
         [](const Tuple &t) { return t.fields[0]; }, [](const Tuple &t) { return t.fields[0]; },
         idx_map);
 
-    // joinOp1->open();
-    // Tuple joinOut;
-    // int counter = 0;
-    // while (joinOp1->next(joinOut)) {
-    //     counter++;
-    //     cout << "Join size = " << joinOut.fields.size() << endl;
-    //     cout << "Join: " << joinOut.fields[0] << ", " << joinOut.fields[1] << ", "
-    //          << joinOut.fields[2] << ", " << joinOut.fields[3] << endl;
-    //     cout << "Join count = " << counter << endl;
-    // }
-    // cout << "Join count = " << counter << endl;
-    // joinOp1->close();
-
     auto peopleScan = new ScanOp<PersonRow>(bm, peopleFile);
+
     std::unordered_map<std::string, int> idx_map2 = {{"movieId", 0}, {"title", 1}, {"personId", 3}};
     auto joinOp2 = new BNLJoinOp<std::string, MovieWorkedOnRow>(
         bm, joinOp1, peopleScan, (buffer_size - 6) / 2, "-2.bin",
         [](const Tuple &t) { return t.fields[3]; }, [](const Tuple &t) { return t.fields[0]; },
         idx_map2);
 
-    // joinOp2->open();
-    // Tuple joinOut2;
-    // int counter2 = 0;
-    // while (joinOp2->next(joinOut2)) {
-    //     counter2++;
-    //     cout << "Join size = " << joinOut2.fields.size() << endl;
-    //     cout << "Join: " << joinOut2.fields[0] << ", " << joinOut2.fields[1] << ", "
-    //          << joinOut2.fields[2] << ", " << joinOut2.fields[3] << ", " << joinOut2.fields[4]
-    //          << endl;
-    //     cout << "Join count = " << counter2 << endl;
-    // }
-    // joinOp2->close();
-
     auto finalProject = new ProjectOp(joinOp2, {1, 4});
-    finalProject->open();
-    Tuple finalOut;
-    int finalCounter = 0;
-    while (finalProject->next(finalOut)) {
-        finalCounter++;
-        cout << "Final: " << finalOut.fields[0] << ", " << finalOut.fields[1] << endl;
-    }
-    cout << "Final count = " << finalCounter << endl;
-    finalProject->close();
-    // 212 rows for 'A'-'B', 141 for engine
-    // 342 rows for 'A'-'C', 173 for engine
+    // finalProject->open();
+    // Tuple finalOut;
+    // int finalCounter = 0;
+    // while (finalProject->next(finalOut)) {
+    //     finalCounter++;
+    //     cout << "Final: " << finalOut.fields[0] << ", " << finalOut.fields[1] << endl;
+    // }
+    // cout << "Final count = " << finalCounter << endl;
+    // finalProject->close();
 
-    // 6686 rows for 'A'-'B' on movie select, pass
-    // 9367 rows for WorkedOn Select
+    finalProject->open();
+    Tuple joinOut;
+    std::ofstream fout("join_out.tsv");
+    fout << "title\tname\n";
+
+    while (finalProject->next(joinOut)) {
+        fout << joinOut.fields[0] << '\t' << joinOut.fields[1] << '\n';
+    }
+    finalProject->close();
+    fout.close();
 }
