@@ -18,7 +18,15 @@ template <typename RowType> class ScanOp : public Operator
     {
     }
 
-    void open() override { page = bm.getPage<RowType>(pid++, filePath); }
+    void open() override
+    {
+        pid = 0;
+        slot = 0;
+        page = nullptr;
+        // register the file with BufferManager (also reset the file pointer)
+        bm.registerFile(filePath);
+        page = bm.getPage<RowType>(pid++, filePath);
+    }
 
     bool next(Tuple &out) override
     {

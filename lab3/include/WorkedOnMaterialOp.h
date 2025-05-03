@@ -20,7 +20,15 @@ class WorkedOnMaterialOp : public Operator
     {
     }
 
-    void open() override { child->open(); }
+    void open() override
+    {
+        child->open();
+        if (scanOpPtr) {
+            scanOpPtr->close();
+            delete scanOpPtr;
+            scanOpPtr = nullptr;
+        }
+    }
 
     bool next(Tuple &out) override
     {
@@ -28,13 +36,14 @@ class WorkedOnMaterialOp : public Operator
             // Materialize the data
             remove(tempFile.c_str());
             materialize();
-            materialized = true;
         }
         if (!scanOpPtr) {
+            cout << "Creating scan operator for materialized file: " << tempFile << endl;
             // Create a scan operator to read from the materialized file
             scanOpPtr = new ScanOp<WorkedOnKeyRow>(bm, tempFile);
             scanOpPtr->open();
         }
+        // cout << "Reading from materialized file: " << tempFile << endl;
         return scanOpPtr->next(out);
     }
 
@@ -45,6 +54,8 @@ class WorkedOnMaterialOp : public Operator
 
         Page<WorkedOnKeyRow> *page = bm.createPage<WorkedOnKeyRow>(tempFile);
         int pid = page->getPid();
+        bm.markDirty(pid, tempFile);
+
         Tuple in;
         int counter = 0;
         while (child->next(in)) {
@@ -52,11 +63,16 @@ class WorkedOnMaterialOp : public Operator
             counter++;
             if (page->isFull()) {
                 bm.unpinPage(pid, tempFile);
+                cout << "Materialized " << counter << " rows into " << tempFile << endl;
+                cout << "Pid: " << pid << " tempfile " << tempFile << endl;
                 page = bm.createPage<WorkedOnKeyRow>(tempFile);
                 pid = page->getPid();
+                bm.markDirty(pid, tempFile);
             }
             page->insertRow(row);
         }
+
+        materialized = true;
         cout << "Materialized " << counter << " rows into " << tempFile << endl;
         bm.unpinPage(pid, tempFile);
     }

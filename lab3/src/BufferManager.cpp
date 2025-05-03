@@ -206,7 +206,7 @@ void BufferManager::unpinPage(int pageId, const std::string filePath)
         if (pageMetadata[pageTable[pageId]].pinCount > 0) {
             pageMetadata[pageTable[pageId]].pinCount--;
         } else {
-            cerr << "page pinCoint is already 0!" << endl;
+            cerr << "page pinCount is already 0!" << endl;
         }
     } else {
         cerr << "page " << pageId << " not found in buffer pool!" << endl;

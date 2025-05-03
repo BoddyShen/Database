@@ -58,7 +58,9 @@ template <typename KeyType, typename LeftRowType> class BNLJoinOp : public Opera
 
         // else if probeList is used up, we move to next right tuple and corresponding inner probe
         Tuple rightT;
+        int counter = 0;
         while (right->next(rightT)) {
+            counter++;
             lastRightTuple = rightT;
             auto key = extractRightKey(lastRightTuple);
             auto it = blockHashTable.find(key);
@@ -70,6 +72,7 @@ template <typename KeyType, typename LeftRowType> class BNLJoinOp : public Opera
                 return true;
             }
         }
+        cout << "Use " << counter << " right tuples in join" << endl;
 
         // if no more tuples, we need to build the next block and rescan the right operator
         right->close();
@@ -115,6 +118,7 @@ template <typename KeyType, typename LeftRowType> class BNLJoinOp : public Opera
     std::function<KeyType(const Tuple &)> extractLeftKey;
     std::function<KeyType(const Tuple &)> extractRightKey;
     unordered_map<std::string, int> const idx_map; // for mapping row fields to indices of the tuple
+    int total_left_tuple = 0;
 
     // helper function
     // build the next block from left operator
@@ -134,6 +138,7 @@ template <typename KeyType, typename LeftRowType> class BNLJoinOp : public Opera
         Page<LeftRowType> *currentPage = nullptr;
         Tuple in;
         while (blockPages.size() < blockSize && left->next(in)) {
+            total_left_tuple++;
             // create a new page if needed
             if (!currentPage || currentPage->isFull()) {
                 currentPage = bm.createPage<LeftRowType>(blockFileName);
@@ -153,6 +158,7 @@ template <typename KeyType, typename LeftRowType> class BNLJoinOp : public Opera
             KeyType key = extractLeftKey(in);
             blockHashTable[key].emplace_back(currentPage->getPid(), slotId);
         }
+        cout << "Current " << total_left_tuple << " used left tuples" << endl;
     }
 
     Tuple makeJoinedTuple(int pid, int slotId, const Tuple &lastRightTuple)
