@@ -46,12 +46,31 @@ run_query <start_range> <end_range> <buffer_size> test
 e.g. run_query A Z 20 test
 ```
 
-To compare the results to PostgreSQL, run:
-
+To compare cpp query result and PostgreSQL result (correctness test), run:
+// please make sure the path is under the folder /lab3
 ```
-cd ../test
-./postgres_command.sh create_and_load
-./postgres_command.sh query '<start_range>' '<end_range>'
+$ pwd 
+/UMass-CS645/lab3
 
-e.g.  ./postgres_command.sh query 'A' 'Z'
+$ ./test/run_and_compare.sh [start_range] [end_range]
+
+// like
+$ ./test/run_and_compare.sh A C
 ```
+
+At the bottom of the output, it would indicate if two results are the same, see below:
+```
+$ ./test/run_and_compare.sh A C
+...
+...
+...
+Congratulation! The two are the same!
+--- PostgreSQL script finished. ---
+```
+
+If interested in actual output of each:
+
+- Cpp output file path: `/lab3/sorted_cpp.tsv` (sorted), `/lab3/build/cpp_join_out.tsv`   
+- postgreSQL output file path: `/lab3/sorted_psql.tsv` (sorted), `lab3/postgreSQL_output.tsv` 
+
+
