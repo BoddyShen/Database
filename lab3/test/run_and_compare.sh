@@ -19,23 +19,35 @@ run_cpp() {
     EXECUTABLE_RELATIVE_PATH="./${CPP_EXECUTABLE}"
     OUTPUT_TSV_IN_BUILD="${CPP_OUTPUT_TSV}"
 
-    echo "Changing directory to '${BUILD_DIR}'..."
-    # directory changes
     pushd "${BUILD_DIR}" > /dev/null
-    echo "Current directory: $(pwd)"
 
 
     # Check if the executable exists inside the build directory
     if [ ! -f "${EXECUTABLE_RELATIVE_PATH}" ]; then
-        echo "Error: Pre-compiled executable not found at '$(pwd)/${EXECUTABLE_RELATIVE_PATH}'."
+        echo "Error: Pre-compiled executable not found"
         echo "Please compile the C++ code first (e.g., cd build && cmake .. && make)"
-        popd > /dev/null # Go back before exiting
+        popd > /dev/null
         exit 1
     fi
 
-    RUN_CPP_CMD="${EXECUTABLE_RELATIVE_PATH} ${CPP_COMMAND} ${cpp_start_range} ${cpp_end_range} ${CPP_BUFFER_SIZE} ${CPP_TEST_MODE}"
-    echo "Executing C++ (inside build dir): ${RUN_CPP_CMD}"
-    ${RUN_CPP_CMD} # Run the C++ command
+    DATA_FILES=("people100000.bin" "workedon100000.bin" "movie100000.bin")
+
+    for f in "${DATA_FILES[@]}"; do
+        if [ ! -f "$f" ]; then
+            ${CPP_LOAD_DATABASE}
+            break
+        fi
+    done
+
+    echo "All required files found. Proceeding..."
+
+
+
+    CPP_LOAD_DATABASE="${EXECUTABLE_RELATIVE_PATH} pre_process ${CPP_TEST_MODE}"
+    RUN_CPP_QUERY_CMD="${EXECUTABLE_RELATIVE_PATH} ${CPP_COMMAND} ${cpp_start_range} ${cpp_end_range} ${CPP_BUFFER_SIZE} ${CPP_TEST_MODE}"
+    ${CPP_LOAD_DATABASE}
+    echo "Executing C++ (inside build dir): ${RUN_CPP_QUERY_CMD}"
+    ${RUN_CPP_QUERY_CMD} # Run the C++ command
 
     # Check if C++ output file was created *inside build directory*
     if [ ! -f "${OUTPUT_TSV_IN_BUILD}" ]; then
@@ -51,13 +63,7 @@ run_bash_query_and_compare() {
     local start_range="$1"
     local end_range="$2"
 
-    # Change back to the original directory
-    echo "Changing back to original directory '${ORIGINAL_PWD}'..."
     popd > /dev/null # Suppress popd output
-    echo "Current directory: $(pwd)"
-
-    echo "--- C++ execution step complete. ---"
-    echo
 
     echo "--- [Step 2] Running PostgreSQL Script (${POSTGRESQL_BASHFILE}) ---"
 
@@ -74,7 +80,7 @@ run_bash_query_and_compare() {
         echo "Error: PostgreSQL script did not produce the expected output file '${POSTGRESQL_OUTPUT_FILE}'."
         exit 1
     fi
-    echo "--- PostgreSQL script finished. ---"
+    echo "--- PostgreSQL script finished ---"
     echo
 }
 
