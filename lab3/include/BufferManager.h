@@ -78,6 +78,12 @@ class BufferManager
     void unpinPage(int pageId, const std::string filePath);
 
     /**
+     * Returns the number of I/O operations performed.
+     * @return The number of I/O operations.
+     */
+    int getIOCount() { return IOCount; }
+
+    /**
      * Prints the status of the BufferManager (debug use).
      */
     void printStatus();
@@ -112,6 +118,8 @@ class BufferManager
 
     // key: filePath, value: pointer to the fileHandle
     std::unordered_map<std::string, FileHandle *> fileTable;
+
+    int IOCount;
 };
 
 #endif // BUFFER_MANAGER_H

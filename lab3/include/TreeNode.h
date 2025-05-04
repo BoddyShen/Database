@@ -4,6 +4,7 @@
 #include "Constants.h"
 #include <cassert>
 #include <iostream>
+#include <cstring>
 
 // internal node: V = pid; leaf node: V = Rid
 // data layout: [isLeaf:bool][size:int][next pid or Rid:int]

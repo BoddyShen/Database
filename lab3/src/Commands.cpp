@@ -228,4 +228,7 @@ void run_query(const std::string &start_range, const std::string &end_range, int
     }
     finalProject->close();
     fout.close();
+
+    std::cout << "Selectivity for movieId: " << movieSelect->getSelectivity() << "\n";
+    std::cout << bm.getIOCount() << " IOs in total.\n";
 }

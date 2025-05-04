@@ -12,7 +12,7 @@
 
 using namespace std;
 
-BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize)
+BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize), IOCount(0)
 {
     // initialize buffer pool
     bufferPool.resize(bufferSize);
@@ -27,6 +27,10 @@ BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize)
 
 bool BufferManager::registerFile(const std::string filePath)
 {
+    if (fileTable.find(filePath) != fileTable.end()) {
+        std::cout << "file " << filePath << " already registered\n";
+        return true;
+    }
     FileHandle *handle = new FileHandle();
     std::fstream &fs = handle->fs;
     fs.open(filePath, std::ios::in | std::ios::out | std::ios::binary);
@@ -95,6 +99,8 @@ void BufferManager::force()
 template <typename RowType>
 Page<RowType> *BufferManager::getPage(int pageId, const std::string filePath)
 {
+    IOCount++;
+    
     // if the file is not registered, return nullptr
     if (fileTable.find(filePath) == fileTable.end()) {
         std::cerr << "Error: No such filePath " << filePath << "." << std::endl;
@@ -149,6 +155,8 @@ Page<RowType> *BufferManager::getPage(int pageId, const std::string filePath)
 
 template <typename RowType> Page<RowType> *BufferManager::createPage(const std::string filePath)
 {
+    IOCount++;
+
     // if the file is not registered, return nullptr
     if (fileTable.find(filePath) == fileTable.end()) {
         std::cerr << "Error: No such filePath " << filePath << "." << std::endl;

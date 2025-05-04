@@ -10,7 +10,7 @@ class SelectOp : public Operator
 {
   public:
     SelectOp(Operator *child, std::function<bool(const Tuple &)> predicate)
-        : child(child), predicate(predicate)
+        : child(child), predicate(predicate), selected_num(0), total_num(0)
     {
     }
 
@@ -19,7 +19,9 @@ class SelectOp : public Operator
     bool next(Tuple &out) override
     {
         while (child->next(out)) {
+            total_num++;
             if (predicate(out)) {
+                selected_num++;
                 return true;
             }
         }
@@ -28,8 +30,17 @@ class SelectOp : public Operator
 
     void close() override { child->close(); }
 
+    double getSelectivity() {
+        if (total_num == 0) {
+            return 0.0;
+        }
+        return static_cast<double>(selected_num) / total_num;
+    }
+
   private:
     Operator *child;
     std::function<bool(const Tuple &)> predicate;
+    int selected_num;
+    int total_num;
 };
 #endif // SELECTOP_H
