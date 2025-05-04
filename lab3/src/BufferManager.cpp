@@ -52,6 +52,7 @@ bool BufferManager::registerFile(const std::string filePath)
     handle->nextPageId = nextPageId;
     // std::cout << "nextPageId: " << nextPageId << std::endl;
     fileTable[filePath] = handle;
+    std::cout << "file " << filePath << " opened, nextPageId: " << nextPageId << std::endl;
     std::cout << "file " << filePath << " registered\n";
     return is_existed;
 }

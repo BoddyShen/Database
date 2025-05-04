@@ -57,3 +57,8 @@ add_executable(db_engine
   src/StartEngine.cpp
   ${SOURCES}
 )
+
+add_executable(performance_test
+  test/performance_test.cpp
+  ${SOURCES}
+)

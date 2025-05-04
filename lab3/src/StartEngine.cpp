@@ -61,7 +61,7 @@ int processCommand(const std::vector<std::string>& tokens, bool interactive) {
         }
 
         bool test = (tokens.size() == 5 && tokens[4] == "test");
-        run_query(tokens[1], tokens[2], buf, test); // Assuming run_query handles its own errors/output
+        run_query(tokens[1], tokens[2], buf, test, nullptr, nullptr); // Assuming run_query handles its own errors/output
 
     } else {
         std::cerr << "Unknown command: " << command << "\n";
@@ -130,7 +130,7 @@ int main(int argc, char* argv[])
                 } else if (tokens.size() == 5) {
                     // test mode
                     bool test = (tokens[4] == "test");
-                    run_query(tokens[1], tokens[2], buf, test);
+                    run_query(tokens[1], tokens[2], buf, test, nullptr, nullptr);
                 }
             } else {
                 std::cerr << "Unknown command: " << tokens[0] << "\n";

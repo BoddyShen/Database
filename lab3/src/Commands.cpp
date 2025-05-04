@@ -145,7 +145,7 @@ void pre_process(bool test)
 }
 
 void run_query(const std::string &start_range, const std::string &end_range, int buffer_size,
-               bool test)
+               bool test, double *selectivity, int *ioCount)
 {
     BufferManager bm(buffer_size);
 
@@ -230,5 +230,13 @@ void run_query(const std::string &start_range, const std::string &end_range, int
     fout.close();
 
     std::cout << "Selectivity for movieId: " << movieSelect->getSelectivity() << "\n";
+    std::cout << "Selectivity for workedOn: " << selectWorkedOn->getSelectivity() << "\n";
     std::cout << bm.getIOCount() << " IOs in total.\n";
+
+    if (selectivity) {
+        *selectivity = movieSelect->getSelectivity();
+    }
+    if (ioCount) {
+        *ioCount = bm.getIOCount();
+    }
 }
