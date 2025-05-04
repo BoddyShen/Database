@@ -2,6 +2,7 @@
 #include "Constants.h"
 #include "Utilities.h"
 #include <cassert>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -162,6 +163,7 @@ template <typename RowType> Page<RowType> *BufferManager::createPage(const std::
         return nullptr;
     }
     int pageId = fileTable[filePath]->nextPageId++;
+    std::filesystem::resize_file(filePath, pageId * MAX_PAGE_SIZE);
 
     // add the new page to the buffer pool
     bufferPool[frameIndex] = AnyPage{std::in_place_type<Page<RowType>>};
