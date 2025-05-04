@@ -327,12 +327,10 @@ void BufferManager::printStatus()
 template Page<MovieRow> *BufferManager::getPage<MovieRow>(int, std::string);
 template Page<WorkedOnRow> *BufferManager::getPage<WorkedOnRow>(int, std::string);
 template Page<PersonRow> *BufferManager::getPage<PersonRow>(int, std::string);
-template Page<TestRow> *BufferManager::getPage<TestRow>(int, std::string);
 
 template Page<MovieRow> *BufferManager::createPage<MovieRow>(std::string);
 template Page<WorkedOnRow> *BufferManager::createPage<WorkedOnRow>(std::string);
 template Page<PersonRow> *BufferManager::createPage<PersonRow>(std::string);
-template Page<TestRow> *BufferManager::createPage<TestRow>(std::string);
 
 // for dummy usage, e.g. BTree
 template Page<char> *BufferManager::getPage<char>(int, std::string);
