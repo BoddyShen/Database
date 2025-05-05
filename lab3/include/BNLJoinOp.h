@@ -97,6 +97,8 @@ template <typename KeyType, typename LeftRowType> class BNLJoinOp : public Opera
         remove(blockFileName.c_str());
     }
 
+    int getTotalOut() { return total_out_tuple; }
+
   private:
     BufferManager &bm;
     Operator *left;
@@ -119,6 +121,7 @@ template <typename KeyType, typename LeftRowType> class BNLJoinOp : public Opera
     std::function<KeyType(const Tuple &)> extractRightKey;
     unordered_map<std::string, int> const idx_map; // for mapping row fields to indices of the tuple
     int total_left_tuple = 0;
+    int total_out_tuple = 0;
 
     // helper function
     // build the next block from left operator
@@ -171,6 +174,7 @@ template <typename KeyType, typename LeftRowType> class BNLJoinOp : public Opera
         delete leftRow;
         result.fields.insert(result.fields.end(), lastRightTuple.fields.begin(),
                              lastRightTuple.fields.end());
+        total_out_tuple++;
         return result;
     }
 };

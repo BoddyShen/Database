@@ -28,10 +28,6 @@ BufferManager::BufferManager(int bufferSize) : bufferSize(bufferSize), IOCount(0
 
 bool BufferManager::registerFile(const std::string filePath)
 {
-    if (fileTable.find(filePath) != fileTable.end()) {
-        std::cout << "file " << filePath << " already registered\n";
-        return true;
-    }
     FileHandle *handle = new FileHandle();
     std::fstream &fs = handle->fs;
     fs.open(filePath, std::ios::in | std::ios::out | std::ios::binary);
