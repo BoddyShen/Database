@@ -48,8 +48,9 @@ e.g. run_query A Z 20 test
 
 To compare cpp query result and PostgreSQL result (correctness test), run:
 // please make sure the path is under the folder /lab3
+
 ```
-$ pwd 
+$ pwd
 /UMass-CS645/lab3
 
 $ ./test/run_and_compare.sh [start_range] [end_range]
@@ -59,6 +60,7 @@ $ ./test/run_and_compare.sh A C
 ```
 
 At the bottom of the output, it would indicate if two results are the same, see below:
+
 ```
 $ ./test/run_and_compare.sh A C
 ...
@@ -70,7 +72,13 @@ Congratulation! The two are the same!
 
 If interested in actual output of each:
 
-- Cpp output file path: `/lab3/sorted_cpp.tsv` (sorted), `/lab3/build/cpp_join_out.tsv`   
-- postgreSQL output file path: `/lab3/sorted_psql.tsv` (sorted), `lab3/postgreSQL_output.tsv` 
+- Cpp output file path: `/lab3/sorted_cpp.tsv` (sorted), `/lab3/build/cpp_join_out.tsv`
+- postgreSQL output file path: `/lab3/sorted_psql.tsv` (sorted), `lab3/postgreSQL_output.tsv`
 
+To run performance test for first 100000 rows, in /lab3 run:
 
+```
+./build/performance_test
+
+python3 plot_results.py
+```
